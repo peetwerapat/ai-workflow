@@ -13,11 +13,32 @@ ai/                      ← source of truth ชุดเดียว
 ## ติดตั้ง
 
 ```bash
+git clone <repo> && cd ai-workflow
 ./install.sh              # เลือกจากเมนูว่าจะติดตั้งตัวไหน
 ./install.sh all          # ทุกตัว ไม่ถามเมนู
 ./install.sh claude       # เฉพาะตัวใดตัวหนึ่ง (claude | codex | antigravity | shell)
 ./install.sh --status     # ดูว่าติดตั้งอะไรไว้
-./install.sh --uninstall  # ถอนเฉพาะสิ่งที่ script สร้าง (รวม shell wrapper)
+./install.sh --update     # ดึงเวอร์ชันใหม่จากต้นทางแล้วติดตั้งทับ
+./install.sh --uninstall  # ถอนเฉพาะสิ่งที่ script สร้าง (รวม ~/.ai-agent + shell wrapper)
+```
+
+### ลบ folder ที่ clone มาได้เลย
+
+`install.sh` จะ **copy ตัวเอง + `ai/` ไปไว้ที่ `~/.ai-agent` ก่อน** แล้ว re-exec ติดตั้งจากที่นั่น
+symlink ทุกเส้นและ shell wrapper จึงชี้ไป `~/.ai-agent` ไม่ใช่ folder ที่ clone มา
+
+```
+~/.ai-agent/          ← ที่เก็บถาวร (ห้ามลบ)
+├── ai/                 copy ของ ai/ ใน repo
+├── install.sh          copy — ใช้ --update / --uninstall จากที่นี่ได้
+├── .source             git remote + commit ที่ติดตั้งมา (ให้ --update รู้ว่าดึงจากไหน)
+└── .install-prefs      ตัวเลือกที่ติ๊กไว้ — ไม่หายตอน update
+```
+
+ติดตั้งเสร็จ script จะบอกเองว่าลบ clone ได้ อัปเดตรอบหลังไม่ต้อง clone ใหม่:
+
+```bash
+~/.ai-agent/install.sh --update     # clone ต้นทางลง temp → copy ทับ → ติดตั้งซ้ำด้วยค่าที่จำไว้
 ```
 
 รันเปล่าๆ จะขึ้นเมนูให้ติ๊ก — ค่า default ติ๊กเฉพาะตัวที่มี binary จริงในเครื่อง
@@ -42,7 +63,7 @@ ai/                      ← source of truth ชุดเดียว
 | `enter` | ยืนยัน |
 | `q` หรือ `Esc` | ออกโดยไม่ติดตั้ง |
 
-ที่เลือกไว้ถูกจำใน `.install-prefs` (gitignore แล้ว) รอบหน้าไม่ต้องติ๊กใหม่ ลบไฟล์นี้เพื่อกลับไป auto-detect
+ที่เลือกไว้ถูกจำใน `.install-prefs` (อยู่ที่ `~/.ai-agent/` หลังติดตั้ง — gitignore แล้ว) รอบหน้าไม่ต้องติ๊กใหม่ ลบไฟล์นี้เพื่อกลับไป auto-detect
 รันแบบ non-interactive (CI / script) จะข้ามเมนูแล้วใช้ค่าที่จำไว้ หรือ `AI_AGENT_YES=1` เพื่อบังคับข้าม
 
 `install.sh` จะเพิ่ม `codex()` + `agy()` wrapper ใน shell rc ให้ด้วย — sync skill ให้ก่อนเปิดทุกครั้ง
@@ -51,6 +72,7 @@ ai/                      ← source of truth ชุดเดียว
 ไม่อยากให้แตะ shell rc → `AI_AGENT_NO_SHELL=1 ./install.sh` (แต่ต้องรัน `./install.sh codex` / `antigravity` เองทุกครั้งที่แก้ command)
 
 ไฟล์เดิมที่ทับจะถูกสำรองเป็น `*.bak-YYYYMMDD-HHMMSS` ก่อนเสมอ
+(ยกเว้น symlink ของ script นี้เอง และ symlink ที่เสียค้างเพราะ clone เดิมถูกลบ — เขียนทับเลยไม่สำรอง)
 
 ### ติดตั้งไปที่ไหนบ้าง
 
@@ -61,7 +83,8 @@ ai/                      ← source of truth ชุดเดียว
 | Agents | `~/.claude/agents/*.md` | — (อ่าน `~/.ai/agents/` เอง) | — (อ่าน `~/.ai/agents/` เอง) |
 | เรียกด้วย | `/spec` | **`$spec`** | เรียกชื่อ skill (`spec`) |
 
-เฉพาะ **Claude** ที่ commands เป็น symlink — แก้ `ai/commands/*.md` แล้วเห็นทันที
+เฉพาะ **Claude** ที่ commands เป็น symlink (ชี้ไป `~/.ai-agent/ai/commands/`) — Codex/Antigravity ต้อง generate ใหม่
+ทั้งสองแบบอัปเดตด้วย `~/.ai-agent/install.sh --update` เหมือนกัน
 
 **Codex** (0.155+) เลิกใช้ `~/.codex/prompts/` แล้ว — custom command ต้องเป็น **skill** (`~/.codex/skills/<name>/SKILL.md`)
 และเรียกด้วย **`$`** ไม่ใช่ `/` — frontmatter รับแค่ `name`, `description`, `license`, `allowed-tools`, `metadata`
@@ -74,7 +97,7 @@ Antigravity ไม่มี global rules file — rules เป็น directory-b
 
 ทั้งสองตัวมี shell wrapper (`codex()` / `agy()`) ที่ `install.sh` ใส่ให้ — sync ก่อนเปิดทุกครั้งอัตโนมัติ ไม่ต้องจำ
 
-`~/.ai` เป็น symlink ไปที่ `ai/` ทำให้ทุก assistant อ้าง path เดียวกันได้ (`~/.ai/agents/spec-analyzer.md`)
+`~/.ai` เป็น symlink ไปที่ `~/.ai-agent/ai/` ทำให้ทุก assistant อ้าง path เดียวกันได้ (`~/.ai/agents/spec-analyzer.md`)
 
 ## ใช้งาน
 

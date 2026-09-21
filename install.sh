@@ -6,15 +6,25 @@
 #   ./install.sh all          ติดตั้งทุกตัว ไม่ถามเมนู
 #   ./install.sh claude       ติดตั้งเฉพาะที่ระบุ (claude | codex | antigravity | shell)
 #   ./install.sh --status     ดูว่าติดตั้งอะไรไว้บ้าง
-#   ./install.sh --uninstall  ถอนเฉพาะสิ่งที่ script นี้สร้าง
+#   ./install.sh --update     ดึงเวอร์ชันใหม่จากต้นทางแล้วติดตั้งทับ
+#   ./install.sh --uninstall  ถอนเฉพาะสิ่งที่ script นี้สร้าง (รวม ~/.ai-agent)
+#
+# script จะ copy ตัวเอง + ai/ ไปไว้ที่ ~/.ai-agent ก่อน แล้วค่อย link จากตรงนั้น
+# — folder ที่ clone มาจึงลบทิ้งได้ทันทีหลังติดตั้งเสร็จ
 #
 # env: AI_AGENT_NO_SHELL=1  ข้ามการแก้ shell rc
+#      AI_AGENT_HOME=<dir>  เปลี่ยนที่เก็บถาวร (default ~/.ai-agent)
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$ROOT/ai"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+
+# ที่เก็บถาวรของชุด AI — copy มาไว้ที่นี่เพื่อให้ลบ clone ทิ้งได้
+AI_AGENT_HOME="${AI_AGENT_HOME:-$HOME/.ai-agent}"
+SOURCE_FILE="$AI_AGENT_HOME/.source"
+DEV_MODE=0
 
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -34,17 +44,36 @@ ok()    { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 count() { ls -1 "$@" 2>/dev/null | wc -l | tr -d ' '; }
 count_dir() { ls -1 "$1" 2>/dev/null | wc -l | tr -d ' '; }
 
+# symlink ที่ script นี้เป็นคนสร้าง — รวม path เก่าตอนที่ยัง link ตรงเข้า clone
+is_ours_link() {
+  [ -L "$1" ] || return 1
+  case "$(readlink "$1")" in
+    "$SRC"|"$SRC"/*|"$AI_HOME"|"$AI_HOME"/*) return 0 ;;
+    "$AI_AGENT_HOME"/ai|"$AI_AGENT_HOME"/ai/*) return 0 ;;
+    */ai/AI.md|*/ai/commands/*.md|*/ai/agents/*.md) return 0 ;;   # ติดตั้งไว้จาก clone ที่อื่น
+  esac
+  return 1
+}
+
 # ย้ายไฟล์จริง (ที่ไม่ใช่ symlink ของเรา) ไปเป็น .bak ก่อนเขียนทับ
 backup_if_real() {
   local target="$1"
   [ -e "$target" ] || [ -L "$target" ] || return 0
-  if [ -L "$target" ]; then
-    case "$(readlink "$target")" in
-      "$SRC"|"$SRC"/*|"$AI_HOME"|"$AI_HOME"/*) return 0 ;;   # link ของเราเอง — เขียนทับได้เลย
-    esac
+  is_ours_link "$target" && return 0
+  # symlink เสียค้าง (clone เดิมถูกลบไปแล้ว) — ลบทิ้งได้เลย ไม่ต้องสำรอง
+  if [ -L "$target" ] && [ ! -e "$target" ]; then
+    rm -f "$target"
+    return 0
   fi
   mv "$target" "$target.bak-$STAMP"
   warn "สำรองของเดิม → $(basename "$target").bak-$STAMP"
+}
+
+same_path() {
+  local a b
+  a="$(cd "$1" 2>/dev/null && pwd -P)" || a="$1"
+  b="$(cd "$2" 2>/dev/null && pwd -P)" || b="$2"
+  [ "$a" = "$b" ]
 }
 
 link() {
@@ -125,6 +154,89 @@ strip_shell_block() {
     /^# <<< ai-agent.* sync <<<$/ { skip = 0 }
   ' "$rc" > "$tmp"
   mv "$tmp" "$rc"
+}
+
+# ---------- self-install (copy ไปที่ถาวร แล้วลบ clone ได้) ----------
+# maintainer เท่านั้น: --dev / AI_AGENT_DEV=1 ข้ามการ copy แล้ว link ตรงเข้า repo
+# ไม่ประกาศใน README/usage — ต้นทางแก้ ai/ ที่เดียว เครื่องอื่นเป็นผู้ใช้อย่างเดียว
+
+dev_mode_remembered() {
+  [ -f "$ROOT/.install-prefs" ] && grep -q '^AI_AGENT_DEV=1' "$ROOT/.install-prefs"
+}
+
+remember_dev_mode() {
+  local tmp
+  info "maintainer mode — link ตรงเข้า $ROOT (ห้ามลบ repo นี้)"
+  if [ -f "$PREFS" ]; then
+    grep -q '^AI_AGENT_DEV=1' "$PREFS" && return 0
+    tmp="$(mktemp)"
+    grep -v '^AI_AGENT_DEV=' "$PREFS" > "$tmp" || true
+    printf 'AI_AGENT_DEV=1\n' >> "$tmp"
+    mv "$tmp" "$PREFS"
+  else
+    printf '%s\n%s\n' "# ตัวเลือกล่าสุดของ ./install.sh" "AI_AGENT_DEV=1" > "$PREFS"
+  fi
+  info "จำไว้ใน .install-prefs แล้ว — รอบหน้าไม่ต้องใส่ flag ซ้ำ"
+}
+
+# จด git remote + commit ไว้ ให้ --update รู้ว่าจะไปดึงจากไหนตอนที่ clone ถูกลบไปแล้ว
+record_source() {
+  local dir="$1" url="" commit=""
+  if command -v git >/dev/null 2>&1 && git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
+    url="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+    commit="$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)"
+  fi
+  cat > "$SOURCE_FILE" <<SRCEOF
+# ที่มาของชุดนี้ — ใช้โดย ./install.sh --update (generated)
+AI_AGENT_SOURCE_URL=$url
+AI_AGENT_SOURCE_COMMIT=$commit
+AI_AGENT_INSTALLED_AT=$STAMP
+SRCEOF
+}
+
+# copy ai/ + install.sh ไป $AI_AGENT_HOME แล้ว re-exec จากที่นั่น
+# ทุก symlink หลังจากนี้จะชี้ไป $AI_AGENT_HOME ไม่ใช่ clone → ลบ clone ได้ทันที
+self_install() {
+  head2 "Self-install"
+  mkdir -p "$AI_AGENT_HOME"
+  rm -rf "$AI_AGENT_HOME/ai"
+  cp -R "$SRC" "$AI_AGENT_HOME/ai"
+  cp "$ROOT/install.sh" "$AI_AGENT_HOME/install.sh"
+  chmod +x "$AI_AGENT_HOME/install.sh"
+  [ -f "$ROOT/README.md" ] && cp "$ROOT/README.md" "$AI_AGENT_HOME/README.md"
+  record_source "$ROOT"
+  ok "copy ชุด AI → $AI_AGENT_HOME"
+  export AI_AGENT_SELF_INSTALLED=1
+  export AI_AGENT_FROM="$ROOT"
+  exec "$AI_AGENT_HOME/install.sh" "$@"
+}
+
+update() {
+  head2 "Update"
+  if [ ! -f "$SOURCE_FILE" ]; then
+    warn "ไม่พบ $SOURCE_FILE"
+    info "ยังไม่เคยติดตั้งจาก clone — clone repo แล้วรัน ./install.sh ก่อน"
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$SOURCE_FILE"
+  if [ -z "${AI_AGENT_SOURCE_URL:-}" ]; then
+    warn "ไม่รู้ต้นทาง (repo ที่ติดตั้งมาไม่มี git remote) — clone เองแล้วรัน ./install.sh"
+    exit 1
+  fi
+  command -v git >/dev/null 2>&1 || { warn "ต้องมี git ถึงจะ --update ได้"; exit 1; }
+
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  info "ดึงจาก $AI_AGENT_SOURCE_URL"
+  if ! git clone --depth 1 "$AI_AGENT_SOURCE_URL" "$tmp/src" >/dev/null 2>&1; then
+    warn "clone ไม่สำเร็จ — ตรวจ network / สิทธิ์เข้า repo"
+    exit 1
+  fi
+  ok "ได้ $(git -C "$tmp/src" rev-parse --short HEAD)"
+  # install.sh ตัวใหม่จะ self-install ทับ $AI_AGENT_HOME แล้วติดตั้งด้วยค่าที่จำไว้
+  AI_AGENT_YES=1 "$tmp/src/install.sh"
 }
 
 install_shared() {
@@ -253,10 +365,8 @@ uninstall() {
   for path in "$AI_HOME" \
               "$CLAUDE_HOME/CLAUDE.md" "$CODEX_HOME/AGENTS.md" \
               "$CLAUDE_HOME"/commands/*.md "$CLAUDE_HOME"/agents/*.md; do
-    [ -L "$path" ] || continue
-    case "$(readlink "$path")" in
-      "$SRC"|"$SRC"/*|"$AI_HOME"/*) rm -f "$path"; info "ลบ $path"; removed=$((removed + 1)) ;;
-    esac
+    is_ours_link "$path" || continue
+    rm -f "$path"; info "ลบ $path"; removed=$((removed + 1))
   done
   for path in "$AGY_HOME"/skills/*/SKILL.md "$CODEX_HOME"/skills/*/SKILL.md; do
     [ -f "$path" ] || continue
@@ -275,12 +385,28 @@ uninstall() {
     info "ลบ codex()/agy() wrapper จาก $rc"
     removed=$((removed + 1))
   fi
+  # ที่เก็บถาวร — ลบเป็นอย่างสุดท้าย (script ตัวเองอาจอยู่ในนี้ แต่ fd เปิดค้างไว้แล้ว)
+  if [ -d "$AI_AGENT_HOME" ] && [ -f "$AI_AGENT_HOME/ai/AI.md" ]; then
+    rm -rf "$AI_AGENT_HOME"
+    info "ลบ $AI_AGENT_HOME"
+    removed=$((removed + 1))
+  fi
   ok "ลบไปทั้งหมด $removed รายการ (ไฟล์ .bak-* ยังอยู่ ถ้าต้องการกู้คืน)"
 }
 
 status() {
   head2 "Status"
-  local path dir rc
+  local path dir rc url commit
+  if [ -f "$AI_AGENT_HOME/ai/AI.md" ]; then
+    ok "ที่เก็บถาวร: $AI_AGENT_HOME (ลบ clone ต้นทางได้)"
+    if [ -f "$SOURCE_FILE" ]; then
+      url="$(sed -n 's/^AI_AGENT_SOURCE_URL=//p' "$SOURCE_FILE")"
+      commit="$(sed -n 's/^AI_AGENT_SOURCE_COMMIT=//p' "$SOURCE_FILE" | cut -c1-7)"
+      info "ต้นทาง: ${url:-ไม่ทราบ} ${commit:+@ $commit}"
+    fi
+  else
+    warn "ยังไม่มี $AI_AGENT_HOME — ยังไม่ได้ติดตั้ง หรือ link ตรงเข้า repo อยู่"
+  fi
   for path in "$AI_HOME" "$CLAUDE_HOME/CLAUDE.md" "$CODEX_HOME/AGENTS.md"; do
     if [ -L "$path" ]; then ok "$path → $(readlink "$path")"; else warn "$path ยังไม่ได้ติดตั้ง"; fi
   done
@@ -323,6 +449,8 @@ SEL_CODEX=$SEL_CODEX
 SEL_AGY=$SEL_AGY
 SEL_SHELL=$SEL_SHELL
 PREFSEOF
+  [ "$DEV_MODE" = 1 ] && printf 'AI_AGENT_DEV=1\n' >> "$PREFS"
+  return 0
 }
 
 LABELS=("Claude Code" "Codex CLI" "Antigravity CLI" "Shell wrapper")
@@ -477,14 +605,53 @@ summary() {
   [ "$SEL_CODEX"  = 1 ] && info "Codex       → \$status, \$ai-init"
   [ "$SEL_AGY"    = 1 ] && info "Antigravity → เรียกชื่อ skill ได้เลย (agy)"
   [ "$SEL_SHELL"  = 1 ] && info "เปิด terminal ใหม่ หรือ source shell rc ก่อนใช้ wrapper"
+  if [ -n "${AI_AGENT_FROM:-}" ]; then
+    info ""
+    ok "ทุกอย่างอยู่ที่ $AI_AGENT_HOME แล้ว — ลบ $AI_AGENT_FROM ทิ้งได้เลย"
+    info "อัปเดตรอบหน้า: $AI_AGENT_HOME/install.sh --update"
+  fi
   return 0
 }
 
 main() {
+  local arg cmd="" do_update=0
+  for arg in "$@"; do
+    case "$arg" in
+      --dev)    DEV_MODE=1 ;;
+      --update) do_update=1 ;;
+      *)        cmd="$arg" ;;
+    esac
+  done
+
+  [ "${AI_AGENT_DEV:-0}" = 1 ] && DEV_MODE=1
+  dev_mode_remembered && DEV_MODE=1
+
+  if [ "$do_update" = 1 ]; then
+    update
+    return
+  fi
+
   [ -d "$SRC" ] || { echo "ไม่พบ $SRC" >&2; exit 1; }
-  case "${1:-}" in
+
+  # --status / --uninstall ไม่ต้อง copy อะไร ทำงานจากที่ไหนก็ได้
+  case "$cmd" in
     --uninstall) uninstall; return ;;
     --status)    status; return ;;
+    ""|all|claude|codex|antigravity|agy|shell) ;;
+    *)
+      echo "ใช้: $0 [all|claude|codex|antigravity|shell] | --status | --update | --uninstall" >&2
+      exit 1
+      ;;
+  esac
+
+  # default: ย้ายตัวเองไปที่ถาวรก่อน แล้ว re-exec จากที่นั่น
+  if [ "$DEV_MODE" = 1 ]; then
+    remember_dev_mode
+  elif [ -z "${AI_AGENT_SELF_INSTALLED:-}" ] && ! same_path "$ROOT" "$AI_AGENT_HOME"; then
+    self_install "$@"
+  fi
+
+  case "$cmd" in
     claude)      SEL_CLAUDE=1 SEL_CODEX=0 SEL_AGY=0 SEL_SHELL=0 ;;
     codex)       SEL_CLAUDE=0 SEL_CODEX=1 SEL_AGY=0 SEL_SHELL=0 ;;
     antigravity|agy) SEL_CLAUDE=0 SEL_CODEX=0 SEL_AGY=1 SEL_SHELL=0 ;;
@@ -498,10 +665,6 @@ main() {
       else
         info "โหมด non-interactive — ใช้ค่าที่บันทึกไว้/auto-detect"
       fi
-      ;;
-    *)
-      echo "ใช้: $0 [all|claude|codex|antigravity|shell|--status|--uninstall]" >&2
-      exit 1
       ;;
   esac
 
