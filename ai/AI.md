@@ -1,6 +1,6 @@
 # AI Working Agreement (Global)
 
-ไฟล์นี้เป็น **rule กลาง** ที่ใช้กับทุก project และทุก assistant (Claude Code / Codex CLI / Antigravity CLI)
+ไฟล์นี้เป็น **rule กลาง** ที่ใช้กับทุก project และทุก assistant (Claude Code / Codex CLI / Antigravity CLI / ZCode)
 Project แต่ละตัวมี context ของตัวเองใน `.ai/` — อ่านทั้งสองชั้นเสมอ
 
 ---
@@ -16,6 +16,7 @@ Project แต่ละตัวมี context ของตัวเองใน
 - Claude Code → `CLAUDE.md`
 - Codex CLI → `AGENTS.md`
 - Antigravity CLI (`agy`) → `AGENTS.md` หรือ `GEMINI.md` (อ่านทั้งสองแบบ ไล่ขึ้นจาก cwd ถึง repo root)
+- ZCode → `AGENTS.md` (หรือ `.zcode/AGENTS.md` / `.agents/AGENTS.md`)
 
 > ถ้า repo มีไฟล์ใดไฟล์หนึ่งใน 3 ตัวนี้ ให้ถือว่าเป็น project memory เดียวกัน — อ่านตัวที่มี
 > ถ้า repo ยังไม่มี `.ai/` เลย → เสนอให้ dev รัน `/ai-init`
