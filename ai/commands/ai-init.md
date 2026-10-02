@@ -8,6 +8,7 @@ argument-hint: [--force]
 เตรียม repo ให้พร้อมใช้ workflow `/spec → /build → /change` โดยสร้าง:
 - **project memory file** ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตาม assistant ที่ใช้)
 - `.ai/context/` พร้อม `ARCHITECTURE.md`, `features.md`, `untracked.md`, `specs/`
+- context ทั้งหมดเป็น **local-only ของเครื่องนี้** — exclude ออกจาก git อัตโนมัติ ไม่ commit ขึ้น repo
 
 **ห้ามเดา** — ทุกอย่างที่เขียนลงไฟล์ต้องมาจากการอ่าน code จริงในรอบนี้
 
@@ -123,6 +124,8 @@ C) Skip — สร้าง .ai/ เปล่าๆ
 - `.ai/context/untracked.md`
 - `.ai/context/specs/.gitkeep`
 
+และแก้ `.git/info/exclude` — context ทั้งชุดจะเป็น **local-only** ไม่ถูก commit ขึ้น repo
+
 พิมพ์ "confirm" เพื่อสร้าง
 ```
 
@@ -152,26 +155,22 @@ Content = template `project-memory.md` เติมด้วย: domain model, t
 
 **4.5 `.ai/context/specs/.gitkeep`**
 
-**4.6 `.gitignore`** — ตรวจว่า `.ai/` ไม่ได้ถูก ignore อยู่ (ต้อง commit เข้า repo)
-`.ai/` เป็นของทีม ไม่ใช่ของเครื่องใครเครื่องมัน — spec ต้อง commit ไปกับ repo
+**4.6 Local-only context (default)** — ทำให้ context เห็นเฉพาะเครื่องนี้
 
-**4.7 `.gitattributes`** — กัน merge conflict ที่ `features.md`
+เพิ่มเข้า `.git/info/exclude` ของ repo งาน (exclude ระดับ clone — ไฟล์นี้ไม่มีทางถูก commit/push ติดไปด้วย):
+- memory file ที่สร้างจริง (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`)
+- `.ai/`
 
-`features.md` เป็นไฟล์ที่ `/reindex` generate ใหม่ทั้งไฟล์ → 2 คนรัน `/reindex` คนละ branch แล้ว merge เมื่อไหร่ก็ชน
-
-เพิ่มบรรทัดนี้ (ถ้ายังไม่มี):
 ```
-.ai/context/features.md merge=ours
+AGENTS.md
+.ai/
 ```
 
-แล้วบอก dev ใน final report ว่า merge driver ต้องตั้งครั้งเดียวต่อเครื่อง:
-```bash
-git config --global merge.ours.driver true
-```
-(`install.sh` ของ ai-agent ตั้งให้อัตโนมัติอยู่แล้ว)
-
-> ถ้ายังชนอยู่ดี → **ห้าม resolve มือ** เอาฝั่งไหนก็ได้ผ่านไปก่อน แล้วรัน `/reindex` ใหม่
-> มัน regen จาก `specs/` ให้ถูกเอง (`specs/` เป็นไฟล์ละ task แทบไม่ชนกัน)
+- ไฟล์ context ทั้งชุดยังอยู่ครบและใช้งานได้ปกติ — แค่ git มองไม่เห็น (`git status` ต้องไม่แสดง)
+- ❌ อย่าใช้ `.gitignore` ของ repo เพราะไฟล์นั้นต้อง commit — คนอื่นจะรู้ทันทีว่ามี context ซ่อนอยู่
+- ไม่ต้องสร้าง `.gitattributes` — `features.md` ไม่ถูก push แล้ว จึงไม่มี merge conflict
+- ถ้าวันหน้าจะ share ให้ทีม: ลบบรรทัดพวกนี้ออกจาก `.git/info/exclude` แล้ว `git add` + commit ตามปกติ
+  (ถ้าเคยมี `.gitattributes` `merge=ours` ค้างจาก flow เก่า ให้พูดถึงใน final report ว่ายังอยู่แต่ไม่จำเป็นแล้ว)
 
 ---
 
@@ -214,13 +213,9 @@ B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan 
 
 ### Next Steps
 1. Review `{memory file}` + `ARCHITECTURE.md` — แก้ตรงที่ไม่ถูกได้เลย
-2. ตรวจ `git status` แล้ว **commit** — ถ้าไม่ commit เพื่อนร่วมทีมจะไม่ได้ `.ai/` ไปด้วย
-   ```
-   git add -A && git commit -m "refactor(ai): migrate context to .ai/ shared across assistants"
-   ```
-3. ตั้ง merge driver ครั้งเดียวต่อเครื่อง (ถ้ายังไม่เคย): `git config --global merge.ours.driver true`
-4. `/spec <requirement>` เพื่อเริ่ม feature แรก
-5. `/sync` ถ้าอยากรู้ว่ามี code ที่ยังไม่มี spec เท่าไหร่
+2. ตรวจว่า `git status` **ไม่แสดง** `.ai/` และ memory file — context เป็น local-only (exclude ไว้ที่ `.git/info/exclude` แล้ว) ไม่ต้อง commit และ ❌ อย่า commit
+3. `/spec <requirement>` เพื่อเริ่ม feature แรก
+4. `/sync` ถ้าอยากรู้ว่ามี code ที่ยังไม่มี spec เท่าไหร่
 ```
 
 ---
@@ -241,6 +236,7 @@ B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan 
 - ❌ **สร้าง memory file ซ้ำซ้อน** ถ้ามีตัวอื่นในตระกูลเดียวกันแล้ว
 - ❌ **แก้ path ใน `.claude/commands/` เก่าแทนการลบ** — project-level ชนะ global จะกลายเป็นชุดที่สอง
 - ❌ **Generate spec ย้อนหลังทั้ง repo อัตโนมัติ**
+- ❌ **commit / push `.ai/` หรือ memory file** — context เป็น local-only ของเครื่องนี้ (เว้นแต่ dev สั่งเอง)
 
 ---
 

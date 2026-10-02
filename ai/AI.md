@@ -41,6 +41,9 @@ Project แต่ละตัวมี context ของตัวเองใน
 **`.ai/` ใช้ร่วมกันทุก assistant** — ห้ามแตกเป็น `.claude/context/`, `.codex/context/` แยกกัน
 spec ชุดเดียว ไม่มี drift
 
+**`.ai/` + memory file เป็น local-only ของเครื่องนี้ (default)** — `/ai-init` จะเพิ่ม memory file + `.ai/` เข้า `.git/info/exclude` ของ repo งานให้ → ไม่ต้อง commit และ ❌ ห้าม commit/push ขึ้น repo (ไฟล์ยังอยู่ครบ แค่ git มองไม่เห็น)
+ถ้า dev ต้องการ share ให้ทีม: ลบบรรทัดเหล่านั้นออกจาก `.git/info/exclude` แล้ว dev commit เอง
+
 ---
 
 ## Development Workflow
