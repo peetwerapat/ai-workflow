@@ -265,15 +265,6 @@ install_shared() {
   link "$SRC" "$AI_HOME"
   ok "$AI_HOME → $SRC"
   info "commands และ agents อ้างถึง ~/.ai/ ได้จากทุก assistant"
-
-  # features.md เป็นไฟล์ generate ทั้งไฟล์ — ให้ .gitattributes (merge=ours) ทำงานได้
-  # ไม่ต้อง resolve conflict มือ แค่รัน /reindex ใหม่
-  if command -v git >/dev/null 2>&1; then
-    if [ "$(git config --global --get merge.ours.driver 2>/dev/null)" != "true" ]; then
-      git config --global merge.ours.driver true
-      ok "git merge driver 'ours' — features.md จะไม่ merge conflict"
-    fi
-  fi
 }
 
 install_claude() {

@@ -68,7 +68,6 @@ symlink ทุกเส้นและ shell wrapper จึงชี้ไป `~
 รันแบบ non-interactive (CI / script) จะข้ามเมนูแล้วใช้ค่าที่จำไว้ หรือ `AI_AGENT_YES=1` เพื่อบังคับข้าม
 
 `install.sh` จะเพิ่ม `codex()` + `agy()` wrapper ใน shell rc ให้ด้วย — sync skill ให้ก่อนเปิดทุกครั้ง
-และตั้ง `git config --global merge.ours.driver true` เพื่อให้ `.gitattributes` ของ repo งานทำงานได้
 
 ไม่อยากให้แตะ shell rc → `AI_AGENT_NO_SHELL=1 ./install.sh` (แต่ต้องรัน `./install.sh codex` / `antigravity` เองทุกครั้งที่แก้ command)
 
@@ -160,12 +159,11 @@ cd ~/dev/ai-agent
 ./install.sh
 ```
 
-จากนั้นเปิด repo งานแล้ว `/ai-init` (ถ้า repo นั้นยังไม่มี `.ai/`) — ถ้ามีคนทำไว้แล้วและ commit ขึ้น git แล้ว ก็ใช้ได้เลยไม่ต้องทำอะไร
+จากนั้นเปิด repo งานแล้ว `/ai-init` (ถ้า repo นั้นยังไม่มี `.ai/`) — context ที่ได้เป็น **local-only ของเครื่องนั้น** (`/ai-init` จะ exclude ที่ `.git/info/exclude` ให้ ไม่ commit ขึ้น repo)
 
 ```
-ครั้งเดียวต่อคน        git clone <ai-agent> && ./install.sh
-ครั้งเดียวต่อ repo งาน   คนใดคนหนึ่ง /ai-init → commit → push
-หลังจากนั้น            ทุกคน git pull แล้ว /spec /build /change ได้เลย
+ครั้งเดียวต่อคนต่อ repo งาน   รัน /ai-init — context อยู่กับเครื่องนั้น
+หลังจากนั้น                  /spec /build /change ได้เลย
 ```
 
 **Antigravity**: `install.sh` วาง skill ให้ แต่ไม่ได้ลงตัว CLI — ใครจะใช้ต้องติดตั้ง `agy` เอง (ไม่พบใน PATH จะมี warning)
@@ -182,22 +180,12 @@ ZCode: commands เห็นทันที (symlink) แต่ agents ต้อ
 | | อยู่ที่ไหน | แชร์ยังไง |
 |---|---|---|
 | Rule กลาง, commands, agents | repo นี้ | `git pull` + `./install.sh` |
-| Spec / architecture ของแต่ละงาน | `.ai/` ใน repo งานนั้น | commit ไปกับ repo งานตามปกติ |
+| Spec / architecture ของแต่ละงาน | `.ai/` ใน repo งานนั้น | ไม่แชร์ — local-only ของเครื่อง (exclude ที่ `.git/info/exclude`) |
 
-`.ai/` ต้อง **commit เข้า repo งาน** ไม่ใช่ใส่ `.gitignore` — spec เป็นของทีม ไม่ใช่ของเครื่องใครเครื่องมัน
+`.ai/` + memory file เป็นของเครื่องนั้นโดย default — `/ai-init` จะเพิ่มเข้า `.git/info/exclude` ให้
+ไฟล์ยังอยู่ครบและใช้งานได้ปกติ แค่ git มองไม่เห็น — อย่า commit/push ขึ้น repo และ ❌ อย่าใส่ `.gitignore` ของ repo เพราะไฟล์นั้นต้อง commit คนอื่นจะรู้ทันทีว่ามี context ซ่อนอยู่
 
-### `features.md` กับ merge conflict
-
-`features.md` เป็นไฟล์ที่ `/reindex` generate ใหม่ทั้งไฟล์ → 2 คนรันคนละ branch แล้ว merge เมื่อไหร่ก็ชน
-
-`/ai-init` จะใส่ `.gitattributes` ให้อยู่แล้ว:
-```
-.ai/context/features.md merge=ours
-```
-ส่วน merge driver `install.sh` ตั้ง `git config --global merge.ours.driver true` ให้อัตโนมัติ
-
-ถ้ายังชนอยู่ดี — **ห้าม resolve มือ** เอาฝั่งไหนก็ได้ผ่านไปก่อน แล้วรัน `/reindex` ใหม่ มัน regen จาก `specs/` ให้ถูกเอง
-(`specs/` เป็นไฟล์ละ task แทบไม่ชนกัน)
+ถ้าวันหน้าอยาก share ให้ทีม: ลบบรรทัดที่ exclude ไว้ออกจาก `.git/info/exclude` แล้ว commit ตามปกติ
 
 ### repo ที่เคยใช้ layout เก่า
 
@@ -206,8 +194,8 @@ repo ที่มี `.claude/commands/`, `.codex/agents/` ค้างอยู
 
 ### ทีมใช้ assistant คนละตัว
 
-ไม่มีปัญหา — ทุกคนอ่าน `.ai/context/` ชุดเดียวกัน
-คนที่ใช้ Claude รัน `/spec` แล้ว commit → คนที่ใช้ Codex `/build` ต่อได้เลย เห็น spec เดียวกัน
+ไม่มีปัญหา — ทุก assistant อ่าน `.ai/context/` ชุดเดียวกันในเครื่องเดียวกัน
+แต่ context เป็น local-only — ถ้าใช้หลายเครื่อง หรืออยากให้เพื่อนร่วมทีมเห็น spec เดียวกัน ต้อง share กันเอง (ลบ exclude ออกแล้ว commit หรือ sync ไฟล์เอง)
 
 ข้อเดียวที่ต้องตกลงกัน: **memory file ที่ root ให้มีตัวเดียวเป็นหลัก** (เช่น `CLAUDE.md`) แล้วอีก 2 ตัวเป็นไฟล์บรรทัดเดียวชี้มาหา — `/ai-init` ทำให้อัตโนมัติอยู่แล้ว
 
