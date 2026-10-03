@@ -12,7 +12,7 @@ Default: code + test + รัน test รวดเดียวจบ
 
 อ่านก่อนเริ่มเสมอ:
 - shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
-- project memory file ที่ root
+- project memory file ที่ root + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/specs/{task-id}.md` — **source of truth ของ build นี้**
 - module rule file ของ module ที่จะแก้ (ถ้ามี)

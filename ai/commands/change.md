@@ -16,7 +16,7 @@ AI แยกประเภทให้อัตโนมัติจาก desc
 
 - shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
   - แตะ contract ใน `integrations.md` → flag repo ฝั่ง consumer ใน risk + เสนออัปเดต shared (ห้ามแก้เอง)
-- project memory file ที่ root
+- project memory file ที่ root + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/specs/{task-id}.md` (หรือ `CLOSED-TASK-{id}.md`) — **source of truth**
 
