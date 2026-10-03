@@ -250,6 +250,15 @@ no R → R01
 ```
 Format: `{task-id}-R{NN}` (2 digits, zero-padded)
 
+### 7.1b Test Readiness + Budgets
+
+Same rules as `/build` (read `~/.ai/commands/build.md` › 1.6, 5.5, Command Output Budget if not loaded):
+- **Test readiness**: the repo cannot test the kind of code being changed (no runner / missing library) → stop and ask:
+  A) apply the change without tests → status ⚠️, Changelog notes it (recommended) · B) set up test infra first (new dependencies, more work) · C) stop
+  ❌ never install test dependencies as a side effect of a change
+- **Fix-loop budget**: 3 attempts per failure **and** at most 8 fix → rerun cycles in total per repo → then stop, status 🚧, report
+- **Command output**: scoped runs, summary reporters / `2>&1 | tail -n 80`, rerun only the failing test, full-project check once at the end — never dump full logs
+
 ### 7.2 Edit Files One-by-One
 
 **Never edit multiple files at once**

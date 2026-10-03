@@ -75,6 +75,19 @@ Always read before starting:
 **1.5 Detect project commands** — read the project's manifest/scripts to find the real test / lint / typecheck / migration commands
 **Never hardcode `npm test`** if the project uses something else
 
+**1.6 Test readiness check** (skip with `--no-test`) — before writing any code, confirm the repo can already test **the kind of code this spec touches**:
+- a test runner is configured (script + config file), and
+- the libraries that kind of test needs are installed (e.g. React components → a DOM testing library; HTTP handlers → the project's request-testing helper)
+
+Missing → **stop and ask** — setting up test infrastructure is a separate, larger job than the feature:
+```
+⚠️ {repo} has no test setup for {kind of code} (missing: {runner / library})
+A) Build without tests for this repo → status ⚠️ Done (untested), Changelog notes it; set up tests later as a separate task (recommended)
+B) Set up test infrastructure now — installs {packages} (new dependencies), noticeably more work and tokens
+C) Stop
+```
+❌ Never install test dependencies or create test config as a side effect of a feature build — only after the dev picks B
+
 ---
 
 ## Step 2: Announce Plan
@@ -184,6 +197,7 @@ Cover 4 categories for every business method:
 ### 5.2 Run Tests
 
 Use the project's real command (from Step 1.5) — scope as narrowly as still covers the change, e.g. filter by module/path
+Follow the [Command Output Budget](#command-output-budget) for every test / lint / typecheck / build run.
 
 ### 5.3 Handle Failures
 
@@ -202,6 +216,21 @@ Use the project's real command (from Step 1.5) — scope as narrowly as still co
 ### 5.4 Lint / Typecheck
 
 After tests pass → run the project's lint + typecheck and make them pass too, before the build counts as done
+Lint/typecheck the changed files first; run the full-project check **once** at the end.
+
+### 5.5 Fix-loop Budget
+
+Besides 3 attempts per failure (5.3), there is a **total budget of 8 fix → rerun cycles per repo** across all failures (tests + lint + typecheck + build).
+Budget reached → **stop**, status stays 🚧, report: what still fails, what was tried, what you suspect. The dev may allow more.
+
+### Command Output Budget
+
+Command output stays in context and is resent on every later request — keep it small:
+- **Scope first**: run only the tests / lint / typecheck for changed files or the module; full-project run once at the end
+- **Short output**: use a summary / dot / failures-only reporter if the runner has one, and/or pipe through `2>&1 | tail -n 80`
+- **On failure**: rerun only the failing test / file to see details — never rerun the whole suite to read one error
+- ❌ Never dump full build / install / test logs into the conversation (`npm install`, `build`, verbose reporters)
+- Don't re-read a large file already read in this session unless it changed
 
 ---
 
@@ -251,6 +280,7 @@ One spec, many repos — do Steps 1.3-6 **one repo at a time, following `**Repos
 - check that files can be written in every repo to be built — if not (e.g. session opened in another repo / sandbox) → stop, recommend:
   `cd <project>` and open a new session, or `/build {task-id} --repo <name>` from a session in that repo
 - any repo without `.ai/` → warn (no ARCHITECTURE to follow), recommend `/ai-init` first
+- run the **1.6 Test readiness check** for every repo to be built and ask once (per repo A/B/C) before building anything
 
 **Plan** (Step 2) shown once for all repos: build order, files per repo, test command per repo, contracts the next repo will depend on
 
@@ -353,7 +383,9 @@ For every endpoint/public interface built this round — so consumers can use it
 - ❌ **Touch `features.md`**
 - ❌ **Bypass architecture rules**
 - ❌ **Mark ✅ while tests still fail** — leaving 🚧 is better
-- ❌ **Install dependencies without confirm**
+- ❌ **Install dependencies without confirm** — includes test libraries (see 1.6)
+- ❌ **Exceed the fix-loop budget (5.5) without the dev's OK**
+- ❌ **Dump full command logs into context** (see Command Output Budget)
 - ❌ **Auto commit / push**
 - ❌ **Cross-repo: build the next repo while a previous repo (that it depends on) still has failing tests**
 - ❌ **Cross-repo: mark Overall ✅ if any repo is not yet ✅**
