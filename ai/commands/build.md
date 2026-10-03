@@ -1,6 +1,6 @@
 ---
 description: Implement feature ตาม spec พร้อมเขียน test — รองรับ incremental mode และ resume
-argument-hint: [task-id] [--incremental | --no-test | --resume]
+argument-hint: [task-id] [--repo <name>] [--incremental | --no-test | --resume]
 ---
 
 # /build — Implement Feature
@@ -11,6 +11,7 @@ Default: code + test + รัน test รวดเดียวจบ
 ## Context Files
 
 อ่านก่อนเริ่มเสมอ:
+- shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
 - project memory file ที่ root
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/specs/{task-id}.md` — **source of truth ของ build นี้**
@@ -28,6 +29,7 @@ Default: code + test + รัน test รวดเดียวจบ
   - `--incremental` — หยุดให้ dev review ทุก layer
   - `--no-test` — skip test (prototype เท่านั้น)
   - `--resume` — ทำต่อจาก state เดิม
+  - `--repo <name>` — cross-repo spec: build เฉพาะ repo นี้ (default: ทุก repo ที่ยังไม่ ✅ ตาม build order)
 
 ---
 
@@ -36,7 +38,9 @@ Default: code + test + รัน test รวดเดียวจบ
 **1.1 หา spec file**
 
 - มี task-id → อ่าน `.ai/context/specs/{task-id}.md` (หรือ `CLOSED-TASK-{id}.md`)
+  ไม่เจอ + อยู่ใน multi-repo project → หาต่อที่ `<project>/.ai/context/specs/` (ดู AI.md › Cross-repo Task)
 - ไม่มี task-id → scan `specs/TASK-*.md` หาไฟล์ที่ `**Status**:` = 📋 หรือ 🚧 (ล่าสุดก่อน)
+  (รวม cross-repo spec ที่ `**Repos**:` มี repo ปัจจุบัน)
 - **หาไม่เจอ**:
   ```
   ❌ ไม่พบ spec file
@@ -63,6 +67,8 @@ Default: code + test + รัน test รวดเดียวจบ
 - โครงสร้างไฟล์ที่มีอยู่
 - pattern ที่ใช้ (follow ให้เหมือน)
 - conflict กับ code ที่จะเขียน
+
+**1.4b Cross-repo spec** (`**Scope**: cross-repo`) → ทำตาม [Cross-repo Build](#cross-repo-build) แทน Step 2-6 ต่อ repo
 
 **1.5 Detect project commands** — อ่าน manifest/script ของ project หา test / lint / typecheck / migration command จริง
 **ห้าม hardcode `npm test`** ถ้า project ใช้อย่างอื่น
@@ -234,6 +240,46 @@ review ก่อนไหม? (ตอบอะไรก็ได้เพื่�
 
 ---
 
+## Cross-repo Build
+
+spec เดียว หลาย repo — ทำ Step 1.3-6 **ทีละ repo ตาม `**Repos**:` (build order)**
+
+**Pre-flight**
+- repo ที่จะ build = ทุก repo ใน Implementation Status ที่ยังไม่ ✅ (หรือเฉพาะ `--repo <name>`)
+- เช็คว่าเขียนไฟล์ได้ทุก repo ที่จะ build — ไม่ได้ (เช่น session เปิดใน repo อื่น / sandbox) → หยุด แนะนำ:
+  `cd <project>` แล้วเปิด session ใหม่ หรือ `/build {task-id} --repo <name>` จาก session ใน repo นั้น
+- repo ใดยังไม่มี `.ai/` → warn (ไม่มี ARCHITECTURE ให้ follow) แนะนำ `/ai-init` ก่อน
+
+**Plan** (Step 2) แสดงรวมทุก repo ครั้งเดียว: build order, files ต่อ repo, test command ต่อ repo, contract ที่ repo ถัดไปจะพึ่ง
+
+**ต่อ repo** (ตามลำดับ):
+1. อ่าน memory file + `ARCHITECTURE.md` + module rule **ของ repo นั้น** — ไม่โหลด context ของ repo ที่ยังไม่ถึงคิว
+2. Implement เฉพาะ section `### {repo}` ใน Proposed Design — path อ้างจาก root ของ project
+3. Test ด้วย command ของ repo นั้น (Step 1.5 ต่อ repo) — repo ต่างกันใช้ runner ต่างกันได้
+4. Update แถวของ repo นั้นใน Implementation Status (Status / Files / Tests) + Changelog `BUILT [{repo}]`
+5. คำนวณ **Overall Status** ใหม่ (AI.md › Cross-repo Task) แล้ว update `**Status**:` + Last Updated
+6. ส่ง contract ที่ implement จริง (path, shape) ต่อให้ repo ถัดไป
+
+**ประหยัด context**: runtime รองรับ subagent → delegate step 1-4 ของแต่ละ repo ให้ subagent ทีละตัว (ตามลำดับ ห้ามขนาน — repo หลังพึ่ง contract ของ repo ก่อน)
+ส่ง input: spec path + ชื่อ repo + contract summary จาก repo ก่อนหน้า / รับกลับ: files, tests, contract จริง, gotchas
+
+**Failure**: test ของ repo ใด fail ครบ 3 รอบ → หยุดที่ repo นั้น (แถวเป็น 🚧) **ไม่ build repo ถัดไป**
+ที่ depend กับมัน — repo ที่ไม่ depend (ไม่มีใน Contract Changes ร่วมกัน) ถาม dev ว่าจะทำต่อไหม
+
+**Contract drift**: implement จริงต่างจาก Contract Changes ใน spec → หยุด ให้ dev เลือก: แก้ code ให้ตรง spec หรือ `/change`
+
+**Final Report** (Step 7) เพิ่ม:
+- ตาราง Implementation Status ต่อ repo + Overall Status
+- diff ที่เสนอสำหรับ `<project>/.ai/context/integrations.md` (ถ้า contract เปลี่ยน — รอ dev confirm ก่อนเขียน)
+- suggested commit **แยกต่อ repo**:
+  ```
+  cd {repo} && git commit -m "feat({scope}): {description}
+
+  Task: {task-id}"
+  ```
+
+---
+
 ## Step 7: Final Report
 
 ```
@@ -307,6 +353,8 @@ Modified:
 - ❌ **Mark ✅ ถ้า test ยัง fail** — ปล่อย 🚧 ดีกว่า
 - ❌ **ติดตั้ง dependency โดยไม่ confirm**
 - ❌ **Commit / push อัตโนมัติ**
+- ❌ **Cross-repo: build repo ถัดไปทั้งที่ repo ก่อนหน้า (ที่มันพึ่ง) test ยัง fail**
+- ❌ **Cross-repo: mark Overall ✅ ถ้ามี repo ใดยังไม่ ✅**
 
 ### Flag-specific Rules
 

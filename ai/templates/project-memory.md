@@ -7,6 +7,7 @@
 {ถ้า multi-tenant: หน่วย isolation คืออะไร key ชื่ออะไร}
 
 > Global working agreement อยู่ที่ `~/.ai/AI.md` — ไฟล์นี้เก็บเฉพาะเรื่องที่เป็นของ project นี้
+> **Multi-repo project** (ลบบรรทัดนี้ถ้าเป็น repo เดี่ยว): repo นี้เป็นส่วนหนึ่งของ `{project}` — shared context อยู่ที่ [`{../}.ai/context/PROJECT.md`]({../}.ai/context/PROJECT.md) อ่านก่อน และห้าม copy เนื้อหาจากที่นั่นมาไว้ในไฟล์นี้
 
 ---
 

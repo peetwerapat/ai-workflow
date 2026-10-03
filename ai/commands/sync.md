@@ -41,6 +41,9 @@ git status --short
 
 Parse: Task ID, Module, Status, และ **Implementation Status > Files**
 
+Multi-repo project → อ่าน `<project>/.ai/context/specs/` ด้วย เฉพาะ spec ที่ `**Repos**:` มี repo นี้ — ใช้แค่แถวของ repo นี้ใน Implementation Status
+(ไฟล์ที่อยู่ในนั้น = tracked ไม่ใช่ orphan) / `--fix` แก้ได้เฉพาะแถวของ repo นี้
+
 ### Source B — source code
 
 หา source root จริงของ project (ห้ามสมมติว่าเป็น `src/`) แล้ว list:

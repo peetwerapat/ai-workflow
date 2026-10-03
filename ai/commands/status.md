@@ -14,6 +14,9 @@ Read-only command สำหรับดูภาพรวม features และ�
 
 **ถ้าไม่มี `.ai/context/`** → แจ้งให้รัน `/ai-init` แล้วหยุด
 
+**Multi-repo project**: รันใน repo → `features.md` ของ repo มี section `# Cross-repo` อยู่แล้ว (จาก `/reindex`)
+รันที่ root ของ project → `features.md` ของ project (cross-repo task) — ถ้าต้องการภาพรวมทุก repo ให้อ่าน At a Glance ของ `features.md` แต่ละ repo เพิ่ม (ไม่อ่าน spec)
+
 ## Runtime Info
 
 ```bash
@@ -101,7 +104,10 @@ git: `git log --author="{user.name}" --since="7 days ago" --oneline | head -20`
 
 ### 🔹 Task Detail
 
-อ่าน spec file: `.ai/context/specs/TASK-{id}.md` (หรือ `CLOSED-TASK-{id}.md`)
+อ่าน spec file: `.ai/context/specs/TASK-{id}.md` (หรือ `CLOSED-TASK-{id}.md`) — ไม่เจอ → หาที่ `<project>/.ai/context/specs/` (AI.md › Cross-repo Task)
+
+cross-repo spec → เพิ่มบรรทัด `**Repos**:` + ตาราง Implementation Status ต่อ repo และ Next Actions ชี้ repo ที่ยังไม่ ✅ ตัวแรกตาม build order
+(`/build {task-id} --repo {name}`)
 
 ```
 ## {task-id} — {feature name} {status-icon}

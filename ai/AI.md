@@ -1,16 +1,19 @@
 # AI Working Agreement (Global)
 
 ไฟล์นี้เป็น **rule กลาง** ที่ใช้กับทุก project และทุก assistant (Claude Code / Codex CLI / Antigravity CLI / ZCode)
-Project แต่ละตัวมี context ของตัวเองใน `.ai/` — อ่านทั้งสองชั้นเสมอ
+Project แต่ละตัวมี context ของตัวเองใน `.ai/` — อ่านทุกชั้นที่มีเสมอ
 
 ---
 
-## Two-Layer Context
+## Context Layers
 
 | Layer | ที่อยู่ | ใครดูแล | เนื้อหา |
 |---|---|---|---|
 | **Global** (ไฟล์นี้) | `~/.ai/AI.md` | shared ทุก project | workflow, commands, rule ที่ใช้ได้ทุกที่ |
-| **Project** | `.ai/` ใน repo + memory file ที่ root | per project | domain, tech stack, architecture, specs |
+| **Project shared** (optional — multi-repo) | `<project>/.ai/context/` ที่มี `PROJECT.md` | per project (หลาย repo) | ภาพรวมระบบ, domain, convention ร่วม, contract ระหว่าง repo, cross-repo ADR |
+| **Repository** | `.ai/` ใน repo + memory file ที่ root | per repo | tech stack, architecture, specs ของ repo นั้น |
+
+repo เดี่ยว (ไม่อยู่ใน multi-repo project) มีแค่ Global + Repository เหมือนเดิม
 
 **Project memory file** = ไฟล์ที่ assistant โหลดเองอัตโนมัติจาก root ของ repo
 - Claude Code → `CLAUDE.md`
@@ -38,6 +41,52 @@ Project แต่ละตัวมี context ของตัวเองใน
             └── CLOSED-TASK-YYYYMMDD-HHMM.md   # terminal status
 ```
 
+### Multi-Repository Project (optional)
+
+project ที่มีหลาย git repo (จำนวนเท่าไหร่ก็ได้ ชื่ออะไรก็ได้) แชร์ context ระดับ project ได้:
+
+```
+<project>/                     # ไม่จำเป็นต้องเป็น git repo
+├── .ai/context/               # shared — source of truth ของเรื่องที่ข้าม repo
+│   ├── PROJECT.md             # marker + repo list + domain + context map (อ่านทุก task)
+│   ├── ARCHITECTURE.md        # system overview + cross-repo ADR (P-ADR-NNN)
+│   ├── conventions.md         # convention ที่เหมือนกันทุก repo
+│   ├── integrations.md        # contract ระหว่าง repo (API / event / shared data)
+│   ├── features.md            # index ของ cross-repo task — regen ด้วย /reindex
+│   └── specs/                 # cross-repo spec เท่านั้น (task ที่แตะ ≥ 2 repo)
+├── <repo-a>/.ai/context/      # layout repo ปกติ (ด้านบน) — เฉพาะของ repo-a
+└── <repo-b>/.ai/context/
+```
+
+สร้างด้วย `/ai-init` ที่ root ของ project (detect เอง หรือ `/ai-init --project`) — ได้ shared + `.ai/` ของทุก repo ที่ตรวจเจอ
+`/ai-init` ใน repo เดียว (หรือ `--repo`) = behavior เดิม และถ้าเจอ shared ด้านบนจะอ้างถึงแทนการ copy
+
+### Context Resolution (ทุก command / ทุก assistant)
+
+1. **หา shared context**: ไล่ขึ้นจาก root ของ repo ปัจจุบันทีละชั้น — เจอ `<dir>/.ai/context/PROJECT.md` ตัวแรก = shared context ของ project
+   - ไม่เจอ → repo เดี่ยว ใช้แค่ `.ai/` ของ repo (behavior เดิม)
+   - cwd เป็น root ของ project เอง (ไม่ใช่ repo) → อ่าน `PROJECT.md` แล้วเลือก repo ตาม task
+2. **โหลดเท่าที่จำเป็น** (ประหยัด token):
+   - `PROJECT.md` ทุกครั้ง → ไฟล์อื่นใน shared ตาม Context Map ใน `PROJECT.md`
+   - `.ai/` ของ **repo ที่ task แตะเท่านั้น** — ❌ ห้ามโหลด context ของ repo อื่นที่ไม่เกี่ยว
+   - cross-repo task → shared + `.ai/` ของแต่ละ repo ที่เกี่ยวข้อง + source code ของ repo เหล่านั้น
+3. **ห้าม duplicate**: เรื่องที่อยู่ใน shared แล้ว ห้าม copy ลง `<repo>/.ai/` หรือ memory file ของ repo — อ้าง path แทน
+   เรื่องที่ขัดกัน → repo-level ชนะสำหรับ repo นั้น แต่ต้อง flag ให้ dev รู้ว่า shared ไม่ตรง
+
+### Cross-repo Task (task ที่แตะ ≥ 2 repo — กี่ repo ก็ได้)
+
+- **spec ไฟล์เดียว** ที่ `<project>/.ai/context/specs/TASK-*.md` — business rule เขียนครั้งเดียว ❌ ห้ามแตกเป็น spec ซ้ำในแต่ละ repo
+- header มี `**Scope**: cross-repo` + `**Repos**: {repo}, {repo}, ...` (เรียงตาม **build order** — provider ก่อน consumer)
+- Proposed Design / Implementation Status **แยกต่อ repo** — path ทุกตัวขึ้นต้นด้วยชื่อ repo (`api/src/...`)
+- **Overall Status** คำนวณจาก status ต่อ repo: มี 🔴 → 🔴 · มี 🚧 หรือ (📋 ปน ✅/⚠️) → 🚧 · ✅ ทุก repo → ✅ · done ครบแต่มี ⚠️ → ⚠️ · 📋 ทุก repo → 📋
+  (❌ / 📦 ตั้งที่ระดับ task เท่านั้น ผ่าน `/change --cancel / --deprecate`)
+- **เปิด session ที่ root ของ project** เมื่อจะ `/build` / `/change` หลาย repo — บาง assistant (เช่น Codex sandbox) เขียนได้เฉพาะ directory ที่เปิด
+  หรือ `/build <task-id> --repo <name>` ทำทีละ repo จาก session ใน repo นั้น
+- commit แยกตาม repo เสมอ (คนละ git repo) — ใส่ `Task: {task-id}` ใน message ให้ trace ข้าม repo ได้
+
+**หา spec จาก task-id** (ทุก command): `.ai/context/specs/` ของ repo ปัจจุบัน → `<project>/.ai/context/specs/` (ทั้ง `TASK-` และ `CLOSED-TASK-`)
+ที่ root ของ project: `<project>/.ai/context/specs/` → `.ai/context/specs/` ของแต่ละ repo
+
 **`.ai/` ใช้ร่วมกันทุก assistant** — ห้ามแตกเป็น `.claude/context/`, `.codex/context/` แยกกัน
 spec ชุดเดียว ไม่มี drift
 
@@ -52,7 +101,7 @@ spec ชุดเดียว ไม่มี drift
 
 | Command | ใช้เมื่อ |
 |---|---|
-| `/ai-init` | repo ใหม่ยังไม่มี `.ai/` → scaffold context + project memory |
+| `/ai-init [--project\|--repo]` | repo / multi-repo project ใหม่ยังไม่มี `.ai/` → scaffold context + project memory |
 | `/spec <requirement>` | รับ requirement ใหม่ → วิเคราะห์ + บันทึก spec |
 | `/build [task-id]` | Implement ตาม spec + เขียน test |
 | `/change <task-id> "<desc>"` | แก้ feature เดิม (bug / req change / refactor) |
@@ -64,6 +113,8 @@ spec ชุดเดียว ไม่มี drift
 
 ```
 Repo ใหม่:      /ai-init → /spec
+Multi-repo:    cd <project> && /ai-init --project
+Cross-repo:    cd <project> && /spec → /build (ทีละ repo ตาม build order) → /reindex
 Feature ใหม่:   /spec → confirm → /build → /reindex → review
 แก้ของเดิม:     /change → confirm → auto-apply → /reindex
 Bug urgent:    /change <task-id> "bug: <desc>"
@@ -115,6 +166,8 @@ Weekly check:  /sync → /reindex
 | `specs/TASK-*.md` (Status / Implementation Status / Changelog / Gotchas) | `/build`, `/change`, `/sync --fix` | `/status` |
 | `features.md` | `/reindex` เท่านั้น | ทุก command อื่น |
 | `ARCHITECTURE.md` | dev (AI เสนอได้ ต้อง confirm) | — |
+| `<project>/.ai/context/{PROJECT,ARCHITECTURE,conventions,integrations}.md` (shared) | `/ai-init` (ครั้งแรก), dev — command อื่นเสนอ diff ได้ ต้อง dev confirm ก่อนเขียน | `/status`, `/reindex` |
+| `<project>/.ai/context/specs/`, `features.md` | กติกาเดียวกับ `specs/` + `features.md` ของ repo (ด้านบน) | — |
 | source code | `/build`, `/change` | `/spec`, `/status`, `/reindex`, `/sync` (ยกเว้น `--fix` ที่แก้ doc) |
 
 > `features.md` เป็น **derived view** ไม่ใช่ source of truth — source of truth คือ `specs/`
@@ -131,7 +184,7 @@ Weekly check:  /sync → /reindex
 
 ### 2. อ่าน context ก่อนเขียน code เสมอ
 
-ลำดับ: project memory (root) → `.ai/context/ARCHITECTURE.md` → spec file → module rule (ถ้ามี) → code จริง
+ลำดับ: shared project context (ถ้ามี — ดู Context Resolution) → project memory (root) → `.ai/context/ARCHITECTURE.md` → spec file → module rule (ถ้ามี) → code จริง
 
 ### 3. Follow existing pattern
 

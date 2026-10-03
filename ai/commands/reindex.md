@@ -10,6 +10,7 @@ argument-hint: [--force]
 - **Idempotent** — รันซ้ำได้ ผลเหมือนเดิม (ถ้า `specs/` ไม่เปลี่ยน)
 - **Stateless** — `features.md` เป็น memory ของระบบเอง ไม่มีไฟล์ state แยก
 - **Token-optimized** — skip `CLOSED-*.md` (ใช้ entry เดิมใน features.md เป็น cache)
+- **Multi-repo aware** — ดู [Cross-repo Specs](#cross-repo-specs)
 
 ## Context Files
 
@@ -174,6 +175,26 @@ total + count ต่อ status + ตารางต่อ module
 
 ---
 
+## Cross-repo Specs
+
+ใช้เมื่ออยู่ใน multi-repo project (มี `<project>/.ai/context/PROJECT.md`) — repo เดี่ยวข้าม section นี้
+
+**รันใน repo**: หลัง Step 3-4 ของ repo ตัวเอง → list `<project>/.ai/context/specs/TASK-*.md`
+อ่านเฉพาะ header (`**Repos**:`, `**Status**:`) + แถวของ repo นี้ใน Implementation Status → เอาเฉพาะ spec ที่ `**Repos**:` มี repo นี้
+render ใน section `# Cross-repo` ของ `features.md` ของ repo:
+```markdown
+- {icon ของ repo นี้} [TASK-{id}](../.ai/context/specs/TASK-{id}.md) — {Title} — overall {overall icon} · repos: {list}
+```
+- `CLOSED-TASK-*` ของ project → ใช้ cache จาก features.md เดิม (กติกาเดียวกับ Step 4) / ❌ ไม่ rename ไฟล์ของ project จาก repo
+- นับเข้า At a Glance ของ repo ด้วยสถานะ **ของ repo นี้** (ไม่ใช่ overall)
+
+**รันที่ root ของ project**: Algorithm เดียวกับ repo (Step 1-8) กับ `<project>/.ai/context/specs/` + `features.md` ของ project
+- ก่อน render → คำนวณ Overall Status จาก Implementation Status ใหม่ (AI.md › Cross-repo Task) — ไม่ตรงกับ `**Status**:` → แก้ `**Status**:` + บอกใน summary
+- auto-close ใช้ Overall Status — rename ด้วย `git mv` ถ้า root เป็น git repo, ไม่ใช่ → `mv`
+- entry แสดง status ต่อ repo: `- {overall} [TASK-{id}](specs/TASK-{id}.md) — {Title} — api ✅ · web 🚧 · worker 📋`
+
+---
+
 ## Rules
 
 ### Must Do
@@ -186,7 +207,7 @@ total + count ต่อ status + ตารางต่อ module
 
 ### Must Not
 - ❌ **อ่าน CLOSED files** ในโหมดปกติ
-- ❌ **แก้เนื้อ spec file** ยกเว้น: append `REOPENED` entry, rename ไฟล์
+- ❌ **แก้เนื้อ spec file** ยกเว้น: append `REOPENED` entry, rename ไฟล์, sync `**Status**:` ของ cross-repo spec ให้ตรง Overall (เฉพาะรันที่ root ของ project)
 - ❌ **เขียน features.md ก่อน scan เสร็จ** — สร้าง content เต็มใน memory ก่อน write
 - ❌ **ลบไฟล์ใดๆ**
 

@@ -26,11 +26,16 @@ description: วิเคราะห์ impact ของ code/requirement chang
 
 ```
 Task ID: {task-id}
-Current spec path: .ai/context/specs/{task-id}.md
+Current spec path: .ai/context/specs/{task-id}.md   (cross-repo: <project>/.ai/context/specs/{task-id}.md)
 Current code files: {list จาก Implementation Status}
 Change description: {dev's description}
 Change type (detected): {FIXED | CHANGED | REFACTORED}
+Scope: {repo | cross-repo} + Repos (build order) — cross-repo เท่านั้น
 ```
+
+**Cross-repo**: trace dependency ข้าม repo ผ่าน Contract Changes ใน spec + `<project>/.ai/context/integrations.md`
+→ output แยก Direct/Indirect impact **ต่อ repo**, ระบุ repo ที่ต้องเพิ่มเข้า Repos (ถ้ามี), และ deploy order ถ้า contract เปลี่ยน
+อ่าน context เฉพาะ repo ที่ถูกแตะจริง
 
 ---
 

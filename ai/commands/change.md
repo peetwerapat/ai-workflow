@@ -14,6 +14,8 @@ AI แยกประเภทให้อัตโนมัติจาก desc
 
 ## Context Files
 
+- shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
+  - แตะ contract ใน `integrations.md` → flag repo ฝั่ง consumer ใน risk + เสนออัปเดต shared (ห้ามแก้เอง)
 - project memory file ที่ root
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/specs/{task-id}.md` (หรือ `CLOSED-TASK-{id}.md`) — **source of truth**
@@ -70,6 +72,7 @@ Format: TASK-YYYYMMDD-HHMM หรือ {MODULE}-{NNN}
 ลองตามลำดับ:
 1. `.ai/context/specs/TASK-{id}.md` (active)
 2. `.ai/context/specs/CLOSED-TASK-{id}.md` (closed)
+3. multi-repo project → `<project>/.ai/context/specs/` (active แล้ว closed) — ดู AI.md › Cross-repo Task
 
 **ไม่พบทั้ง 2**:
 ```
@@ -94,6 +97,17 @@ rename กลับเป็น active ก่อน: `git mv CLOSED-TASK-{id}.md
 | 📋 Planned | ❌ หยุด — ยังไม่ build, แก้ spec file ตรงๆ หรือ cancel + `/spec` ใหม่ |
 | 🔴 Blocked | ⚠️ ถาม blocker ก่อน |
 | ❌ Cancelled / 📦 Deprecated | ❌ หยุด (ถ้าจะรื้อ → reopen ก่อน) |
+
+---
+
+### 2.4 Cross-repo spec (`**Scope**: cross-repo`)
+
+- impact analysis ครอบคลุม **ทุก repo ใน `**Repos**:`** + repo อื่นที่ `integrations.md` บอกว่า consume contract ที่จะแก้
+- change ต้องแตะ repo ที่ยังไม่อยู่ใน `**Repos**:` → แสดงใน Change Plan + ขอ confirm แล้วเพิ่มเข้า Repos / Design / Implementation Status
+- Execute (Step 7) ทีละ repo ตาม build order — test ด้วย command ของแต่ละ repo
+- Changelog ระบุ repo ที่แตะ: `{TYPE} [{repo}, {repo}]` / update แถวใน Implementation Status + Overall Status
+- เปิด session ที่ root ของ project ถ้าต้องเขียนหลาย repo (เหมือน `/build`)
+- spec เดิมเป็น repo-level แต่ change ลามไป repo อื่น → เสนอ `/spec` cross-repo ใหม่สำหรับส่วนที่ข้าม repo (อ้าง task เดิม) แทนการยัดลง spec ของ repo เดียว
 
 ---
 
@@ -334,7 +348,7 @@ B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม beh
 ### Next Steps
 - `git diff` review
 - `/reindex` เพื่อ update features.md
-- Commit (suggested):
+- Commit (suggested — cross-repo: แยก commit ต่อ repo ใส่ Task เดียวกัน):
   ```
   {type}({module}): {description}
 
