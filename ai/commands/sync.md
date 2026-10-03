@@ -1,20 +1,22 @@
 ---
-description: ตรวจ drift ระหว่าง spec files ↔ code จริง (ไม่ตรวจ features.md — งาน /reindex)
+description: Detect drift between spec files ↔ actual code (does not check features.md — that is /reindex's job)
 argument-hint: [--fix]
 ---
 
 # /sync — Detect & Fix Spec ↔ Code Drift
 
-ตรวจว่า spec ใน `.ai/context/specs/` ยังตรงกับ code จริงไหม
-— report อย่างเดียว (default) หรือ interactive fix (`--fix`)
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
 
-**ขอบเขต**: ไม่ตรวจ `features.md` drift — นั่นเป็น derived view แก้ด้วย `/reindex`
-**End of run**: `--fix` mode จะ chain `/reindex` อัตโนมัติ (เพราะ spec ถูกแก้)
+Check whether specs in `.ai/context/specs/` still match the actual code
+— report only (default) or interactive fix (`--fix`)
+
+**Scope**: does not check `features.md` drift — that is a derived view, fixed with `/reindex`
+**End of run**: `--fix` mode auto-chains `/reindex` (because specs were modified)
 
 ## Context Files
 
-- project memory file ที่ root + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
-- `.ai/context/features.md` (overview เท่านั้น — ไม่ใช่แหล่ง detect)
+- project memory file at root + `.ai/context/MEMORY.md` (if present — the team's wins on conflict)
+- `.ai/context/features.md` (overview only — not a detection source)
 - `.ai/context/untracked.md` (whitelist)
 
 ## Runtime Info
@@ -29,7 +31,7 @@ git status --short
 **$ARGUMENTS**
 
 - **Empty** → Detection mode (report only)
-- **`--fix`** → Interactive fix (detect → propose → confirm ทีละรายการ)
+- **`--fix`** → Interactive fix (detect → propose → confirm one item at a time)
 
 ---
 
@@ -37,18 +39,18 @@ git status --short
 
 ### Source A — spec files (source of truth)
 
-อ่านทุกไฟล์ใน `.ai/context/specs/` (ทั้ง `TASK-*.md` และ `CLOSED-TASK-*.md`)
+Read every file in `.ai/context/specs/` (both `TASK-*.md` and `CLOSED-TASK-*.md`)
 
-Parse: Task ID, Module, Status, และ **Implementation Status > Files**
+Parse: Task ID, Module, Status, and **Implementation Status > Files**
 
-Multi-repo project → อ่าน `<project>/.ai/context/specs/` ด้วย เฉพาะ spec ที่ `**Repos**:` มี repo นี้ — ใช้แค่แถวของ repo นี้ใน Implementation Status
-(ไฟล์ที่อยู่ในนั้น = tracked ไม่ใช่ orphan) / `--fix` แก้ได้เฉพาะแถวของ repo นี้
+Multi-repo project → also read `<project>/.ai/context/specs/`, only specs whose `**Repos**:` includes this repo — use only this repo's rows in Implementation Status
+(files listed there = tracked, not orphan) / `--fix` may edit only this repo's rows
 
 ### Source B — source code
 
-หา source root จริงของ project (ห้ามสมมติว่าเป็น `src/`) แล้ว list:
-- module/package directories ที่มีจริง
-- source file ทั้งหมด (ยกเว้น generated / vendor / build output)
+Find the project's actual source root (do not assume `src/`), then list:
+- module/package directories that actually exist
+- all source files (excluding generated / vendor / build output)
 - migration files
 
 ---
@@ -56,41 +58,41 @@ Multi-repo project → อ่าน `<project>/.ai/context/specs/` ด้วย 
 ## Step 2: Detect Drift Categories
 
 ### 🔴 Category 1: Orphan Code
-**ไฟล์ code มีอยู่ แต่ไม่ปรากฏใน Files list ของ spec ใด** (เขียนโดยไม่ผ่าน `/spec`)
+**Code file exists but does not appear in any spec's Files list** (written without going through `/spec`)
 
-Skip: ไฟล์ที่ระบุไว้ใน `untracked.md`, test file ที่คู่กับ source ที่ track แล้ว, config/generated files
+Skip: files listed in `untracked.md`, test files paired with already-tracked source, config/generated files
 
 ```
 🔴 {path}
    Created: {commit} "{msg}" ({relative time} by {author})
-   ไม่มี spec ใดอ้างถึง
+   Not referenced by any spec
 ```
 
 ### 🔴 Category 2: Stale Files
-**spec บอกว่ามีไฟล์ X แต่ filesystem ไม่มี**
+**Spec says file X exists but the filesystem does not have it**
 
 ```
 🔴 CLOSED-TASK-{id}.md ({Module})
-   ระบุว่ามี: {path}
-   File หาย (อาจถูก rename ใน {commit}, {relative time})
+   Lists: {path}
+   File missing (possibly renamed in {commit}, {relative time})
 ```
 
 ### 🟡 Category 3: Module Orphan
-**มี module directory แต่ไม่มี spec ที่ `Module` = ชื่อนั้น**
+**Module directory exists but no spec has `Module` = that name**
 
 ### 🟡 Category 4: Status Lie
-- ✅ แต่ Files list ว่าง
-- ✅ แต่ไฟล์ใน Files list หายหมด
-- 📋 แต่ code มีจริงแล้ว (build แล้วลืม flip status)
+- ✅ but Files list is empty
+- ✅ but all files in Files list are missing
+- 📋 but code actually exists (built but forgot to flip status)
 
 ### 🟡 Category 5: Post-BUILT Activity (heuristic)
-**ไฟล์ใน spec ถูกแก้หลัง Changelog entry ล่าสุด**
+**Files in a spec were modified after the latest Changelog entry**
 
-- หา date ของ Changelog entry ล่าสุด (BUILT / CHANGED / FIXED / REFACTORED — เอา max)
+- Find the date of the latest Changelog entry (BUILT / CHANGED / FIXED / REFACTORED — take the max)
 - `git log --since="{date}" -- {files}`
-- มี commit หลังจากนั้นที่ไม่ตรงกับ Changelog → flag
+- Commits after that which don't match the Changelog → flag
 
-> ⚠️ **Heuristic เท่านั้น** — commit อาจเป็น typo / comment update, dev ต้อง judge เอง
+> ⚠️ **Heuristic only** — a commit may be a typo / comment update, dev must judge
 
 ---
 
@@ -106,7 +108,7 @@ Scanned: {X} spec files | {Y} modules | {Z} source files
 ### 🔴 Critical Drift ({count})
 
 **Orphan Code ({count})**
-- `{path}` — created {commit} "{msg}" ({time} by {author}), ไม่มี spec อ้างถึง
+- `{path}` — created {commit} "{msg}" ({time} by {author}), not referenced by any spec
 
 **Stale Files ({count})**
 - {task-id}: `{path}` not found — last commit {commit} ({time})
@@ -116,36 +118,36 @@ Scanned: {X} spec files | {Y} modules | {Z} source files
 ### 🟡 Warning Drift ({count})
 
 **Module Orphan ({count})**
-- `{module path}` — ไม่มี spec ที่ Module = {name}
+- `{module path}` — no spec with Module = {name}
 
 **Status Lie ({count})**
-- {task-id}: status ✅ แต่ Files list ว่าง
-- {task-id}: status 📋 แต่ code มีแล้ว
+- {task-id}: status ✅ but Files list empty
+- {task-id}: status 📋 but code already exists
 
 **Post-BUILT Activity ({count})**
-- {task-id} ✅ (last entry {date}) — `{file}` แก้เมื่อ {date}
-  Check ว่าเป็น bug fix, refactor, หรือ requirement change
+- {task-id} ✅ (last entry {date}) — `{file}` modified on {date}
+  Check whether it is a bug fix, refactor, or requirement change
 
 ---
 
 ### ✅ In Sync
-{X} specs ไม่พบ drift
+{X} specs with no drift
 ```
 
-**ไม่พบ drift เลย:**
+**No drift at all:**
 ```
 ## ✅ Spec ↔ Code in Sync
 Scanned {X} specs, {Y} modules, {Z} files — no drift detected
-(features.md sync เป็นงานของ /reindex)
+(features.md sync is /reindex's job)
 ```
 
 ---
 
-## Step 4: Fix Mode (เฉพาะ `--fix`)
+## Step 4: Fix Mode (`--fix` only)
 
-ไม่มี `--fix` → จบที่ Step 3 + แนะนำ `/sync --fix`
+No `--fix` → stop at Step 3 + suggest `/sync --fix`
 
-Interactive ทีละรายการ เรียง 🔴 → 🟡:
+Interactive, one item at a time, ordered 🔴 → 🟡:
 
 ```
 ## Drift {N} of {Total}: {Category}
@@ -157,49 +159,51 @@ A) {option 1}
 B) {option 2}
 C) Skip
 
-เลือก [A/B/C]:
+Choose [A/B/C]:
 ```
 
-### Fix Options ต่อ Category
+### Fix Options per Category
 
 **Orphan Code**
 ```
-A) Generate spec retroactively — analyze code ปัจจุบัน → สร้าง spec ใหม่
+A) Generate spec retroactively — analyze current code → create new spec
    Status: ✅ (retroactive), Changelog: ADDED retroactively via /sync
-B) Add to existing spec — เลือก task-id → เพิ่ม path ใน Implementation Status > Files
-C) Mark as untracked — เพิ่มใน `.ai/context/untracked.md` (shared util / infra)
+B) Add to existing spec — pick task-id → add path to Implementation Status > Files
+C) Mark as untracked — add to `.ai/context/untracked.md` (shared util / infra)
 ```
+
+When editing an existing context file (e.g. untracked.md), write in that file's existing language.
 
 **Stale Files**
 ```
 A) Remove from Files list (+ Changelog "REMOVED {file}")
-B) File ถูก rename — ถาม path ใหม่ → update + Changelog "REFACTORED — renamed {old} → {new}"
-C) Feature ถูก revert — `/change {task-id} --cancel "code reverted"`
+B) File was renamed — ask for new path → update + Changelog "REFACTORED — renamed {old} → {new}"
+C) Feature was reverted — `/change {task-id} --cancel "code reverted"`
 ```
 
 **Module Orphan**
 ```
-A) Create spec retroactively สำหรับ module นี้
+A) Create spec retroactively for this module
 B) Mark untracked
-C) Module deprecated — confirm + dev ลบเอง
+C) Module deprecated — confirm + dev deletes it manually
 ```
 
 **Status Lie**
 ```
-# ✅ + Files ว่าง
+# ✅ + Files empty
 A) Fill Implementation Status — scan code → propose Files list
 
-# 📋 + code มีจริง
-A) Flip Status → ✅ (acknowledge ว่า build นอก flow)
-B) `/build --resume` — proper flow + tests (แนะนำ)
+# 📋 + code exists
+A) Flip Status → ✅ (acknowledge it was built outside the flow)
+B) `/build --resume` — proper flow + tests (recommended)
 ```
 
 **Post-BUILT Activity**
 ```
-A) Add CHANGED entry (+ reason, update Business Rules ถ้าจำเป็น)
-B) Add FIXED entry (bug fix ไม่ใช่ requirement change)
+A) Add CHANGED entry (+ reason, update Business Rules if needed)
+B) Add FIXED entry (bug fix, not a requirement change)
 C) Add REFACTORED entry (internal only)
-D) Skip (typo / comment เท่านั้น)
+D) Skip (typo / comment only)
 ```
 
 ---
@@ -231,61 +235,61 @@ Fixed: {X} | Skipped: {Y} | Reindex: ✅
 ## Rules
 
 ### Must Do
-- **Detect ทั้งหมดก่อน fix** — อย่า fix-as-you-go
-- **Confirm ทุก fix** — ห้าม auto-fix แม้ดูปลอดภัย
-- **Preserve history** — แก้ spec ต้อง append Changelog เสมอ
-- **เรียงตาม severity** — 🔴 ก่อน 🟡
-- **อธิบาย "ทำไม flag"** — commit info, timestamp
-- **Chain `/reindex` ตอนจบ** ของ `--fix` mode
+- **Detect everything before fixing** — don't fix-as-you-go
+- **Confirm every fix** — never auto-fix, even if it looks safe
+- **Preserve history** — editing a spec must always append to Changelog
+- **Order by severity** — 🔴 before 🟡
+- **Explain "why flagged"** — commit info, timestamp
+- **Chain `/reindex` at the end** of `--fix` mode
 
 ### Must Not
-- ❌ **ตรวจ features.md drift** — งานของ `/reindex`
-- ❌ **ลบไฟล์โดยไม่ confirm** แม้เป็น orphan
-- ❌ **Overwrite spec file** — regenerate ต้อง merge หรือ backup
-- ❌ **Auto-generate spec จาก heuristic** — ต้องให้ dev review
-- ❌ **Mark ✅ Done จาก sync** — status change ต้องมี test รองรับ (แนะนำ `/build --resume`)
-- ❌ **พังถ้าไม่ใช่ git repo** — ต้อง graceful fallback
+- ❌ **Check features.md drift** — that is `/reindex`'s job
+- ❌ **Delete files without confirm** even if orphan
+- ❌ **Overwrite spec file** — regenerate must merge or backup
+- ❌ **Auto-generate spec from heuristic** — dev must review
+- ❌ **Mark ✅ Done from sync** — status change needs test backing (suggest `/build --resume`)
+- ❌ **Crash if not a git repo** — must gracefully fall back
 
 ---
 
 ## Edge Cases
 
-**Project ใหม่ (specs/ ว่าง)**
+**New project (specs/ empty)**
 ```
-Project ยังไม่มี features — ไม่มี drift ให้ตรวจ
-💡 เริ่มด้วย `/spec <requirement>`
+Project has no features yet — no drift to check
+💡 Start with `/spec <requirement>`
 ```
 
 **Massive drift (> 20 items)**
 ```
-⚠️ พบ drift จำนวนมาก ({X} items)
-อาจเกิดจาก: เพิ่ม doc หลัง code (legacy) / long-running branch merge / ข้าม /sync มานาน
+⚠️ Large amount of drift found ({X} items)
+Possible causes: docs added after code (legacy) / long-running branch merge / /sync skipped for a long time
 
-แนะนำ: แก้จาก 🔴 ก่อน แล้ว 🟡 ทีละกลุ่ม
+Recommended: fix 🔴 first, then 🟡 group by group
 ```
 
 **Non-git project**
 ```
-⚠️ Git ไม่พร้อมใช้งาน — ยัง detect ได้แบบ file-based
-แต่จะ miss: last commit, recent activity, who/when
+⚠️ Git unavailable — can still detect file-based
+but will miss: last commit, recent activity, who/when
 ```
 
 **Uncommitted changes**
 ```
-⚠️ มี uncommitted changes ({X} files) — detect อาจไม่แม่น
-A) Continue  B) `git stash` ก่อน  C) Cancel แล้วค่อย commit
+⚠️ Uncommitted changes present ({X} files) — detection may be inaccurate
+A) Continue  B) `git stash` first  C) Cancel and commit first
 ```
 
-**Orphan ใน shared/common directory**
+**Orphan in shared/common directory**
 ```
-⚠️ น่าจะเป็น shared infrastructure — แนะนำเพิ่มใน untracked.md แทนสร้าง spec
+⚠️ Likely shared infrastructure — suggest adding to untracked.md instead of creating a spec
 ```
 
 ---
 
 ## Output Language
 
-ตอบเป็น**ภาษาไทย** / technical terms, path, git output → **อังกฤษ**
+Respond in **Thai** / technical terms, paths, git output → **English**
 
 ---
 
@@ -297,10 +301,10 @@ AI: ## ✅ Spec ↔ Code in Sync — Scanned 15 specs, 5 modules, 42 files
 
 dev: /sync
 AI: ### 🔴 Critical Drift (1)
-    **Orphan Code** — `{path}` created 2d ago, ไม่มี spec อ้างถึง
-    รัน `/sync --fix` เพื่อแก้
+    **Orphan Code** — `{path}` created 2d ago, not referenced by any spec
+    Run `/sync --fix` to fix
 
 dev: /sync --fix
-AI: [scan → report → fix ทีละอัน → chain /reindex]
+AI: [scan → report → fix one by one → chain /reindex]
     ✅ Sync Complete — Fixed: 1, Skipped: 0, Reindex: ✅
 ```

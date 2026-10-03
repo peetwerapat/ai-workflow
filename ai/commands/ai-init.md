@@ -1,143 +1,146 @@
 ---
-description: Scaffold .ai/ context + project memory file — ระดับ repo (repo เดียว) หรือระดับ project (shared context + ทุก repo ข้างใน) — วิเคราะห์ codebase จริงก่อนเขียน
-argument-hint: [--project | --repo] [--force]
+description: Scaffold .ai/ context + project memory file — repo level (single repo) or project level (shared context + every repo inside) — analyzes the real codebase before writing
+argument-hint: [--project | --repo] [--lang en|th] [--force]
 ---
 
 # /ai-init — Bootstrap Project Context
 
-เตรียม repo ให้พร้อมใช้ workflow `/spec → /build → /change` — ทำได้ 2 ระดับ:
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
 
-| ระดับ | รันที่ | สร้าง |
+Prepare a repo for the `/spec → /build → /change` workflow — 2 levels:
+
+| Level | Run at | Creates |
 |---|---|---|
-| **Repo** (default — behavior เดิม) | root ของ git repo | memory file ที่ root (หรือ `.ai/context/MEMORY.md` ถ้าทีม track memory file ไว้แล้ว) + `.ai/context/` (`ARCHITECTURE.md`, `features.md`, `untracked.md`, `specs/`) |
-| **Project** (multi-repo) | folder ที่มีหลาย git repo อยู่ข้างใน | `<project>/.ai/context/` (shared + cross-repo specs) + Repo-level ของแต่ละ repo ที่ตรวจเจอ |
+| **Repo** (default — original behavior) | git repo root | memory file at root (or `.ai/context/MEMORY.md` if the team already tracks a memory file) + `.ai/context/` (`ARCHITECTURE.md`, `features.md`, `untracked.md`, `specs/`) |
+| **Project** (multi-repo) | folder containing multiple git repos | `<project>/.ai/context/` (shared + cross-repo specs) + Repo-level for each detected repo |
 
-context ทั้งหมดเป็น **local-only ของเครื่องนี้** — exclude ออกจาก git อัตโนมัติ ไม่ commit ขึ้น repo
+All context is **local-only to this machine** — auto-excluded from git, never committed to the repo.
 
-**ห้ามเดา** — ทุกอย่างที่เขียนลงไฟล์ต้องมาจากการอ่าน code จริงในรอบนี้
+**No guessing** — everything written to files must come from reading real code in this run.
 
 ## Input
 
 **$ARGUMENTS**
 
-- `--project` — ทำระดับ **project** (ข้ามการ detect)
-- `--repo` — ทำระดับ **repo** (ข้ามการ detect)
-- `--force` — เขียนทับของเดิมที่มีอยู่ (default: merge ไม่ทับ)
+- `--project` — do **project** level (skip detection)
+- `--repo` — do **repo** level (skip detection)
+- `--force` — overwrite existing files (default: merge, don't overwrite)
+- `--lang en|th` — language of the **context files** written (default `en` — fewer tokens on every session). See [Context Language](#context-language)
 
 ---
 
-## Step 0: เลือกระดับ (Repo / Project)
+## Step 0: Choose Level (Repo / Project)
 
-มี `--project` / `--repo` → ใช้ตามนั้น ไม่ต้อง detect
+`--project` / `--repo` given → use it, no detection.
 
-ไม่มี flag → detect จาก cwd:
+No flag → detect from cwd:
 
 ```bash
-git rev-parse --show-toplevel 2>/dev/null          # cwd อยู่ใน repo ไหม / root อยู่ที่ไหน
-for d in */; do [ -e "$d.git" ] && echo "$d"; done  # ลูกตรงที่เป็น git repo (.git เป็น dir หรือไฟล์ก็ได้ — worktree/submodule)
+git rev-parse --show-toplevel 2>/dev/null          # is cwd inside a repo / where is its root
+for d in */; do [ -e "$d.git" ] && echo "$d"; done  # direct children that are git repos (.git may be a dir or file — worktree/submodule)
 ```
 
-| สถานการณ์ | ระดับ |
+| Situation | Level |
 |---|---|
-| cwd อยู่ใน git repo และไม่มีลูกที่เป็น repo | **Repo** — ใช้ root ของ repo (ถ้า cwd เป็น subdir ให้บอก dev ว่าจะทำที่ root) → Step 1-6 |
-| cwd ไม่ใช่ git repo และ (มีลูกที่เป็น repo หรือมี `.ai/context/PROJECT.md`) | **Project** → [Project Mode](#project-mode) |
-| cwd เป็น git repo **และ** มีลูกที่เป็น repo (meta-repo / submodule) | ถาม dev |
-| ไม่ใช่ git repo และไม่มีลูกที่เป็น repo | ถาม dev ว่าจะสร้าง project context เปล่าไว้ก่อน (เพิ่ม repo ทีหลัง) หรือผิด folder |
+| cwd is in a git repo and has no child repos | **Repo** — use the repo root (if cwd is a subdir, tell the dev it will run at root) → Step 1-6 |
+| cwd is not a git repo and (has child repos or has `.ai/context/PROJECT.md`) | **Project** → [Project Mode](#project-mode) |
+| cwd is a git repo **and** has child repos (meta-repo / submodule) | ask the dev |
+| not a git repo and no child repos | ask the dev whether to create an empty project context now (add repos later) or it's the wrong folder |
 
-แจ้งระดับที่เลือกให้ dev เห็นก่อนเริ่ม Step ถัดไปเสมอ — ❌ ห้ามเดาเมื่อกำกวม
+Always show the dev the chosen level before starting the next Step — ❌ never guess when ambiguous.
 
-**Repo ที่อยู่ใน multi-repo project**: ไล่ขึ้นจาก root ของ repo หา `<dir>/.ai/context/PROJECT.md` (ดู `~/.ai/AI.md` › Context Resolution)
-ถ้าเจอ → อ่าน `PROJECT.md` (+ `conventions.md`) ก่อน Step 2 แล้ว **ห้ามเขียนเรื่องที่อยู่ใน shared ซ้ำ** ลงไฟล์ของ repo — อ้าง path แทน
+**Repo inside a multi-repo project**: walk up from the repo root looking for `<dir>/.ai/context/PROJECT.md` (see `~/.ai/AI.md` › Context Resolution).
+If found → read `PROJECT.md` (+ `conventions.md`) before Step 2, then **never duplicate anything already in shared** into the repo's files — reference the path instead.
 
 ---
 
 ## Step 1: Detect Existing Setup
 
-ตรวจว่ามีอะไรอยู่แล้วบ้าง:
+Check what already exists:
 
-- `.ai/context/` มีหรือยัง
-- project memory file ที่ root (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) — มีตัวไหนบ้าง
-- **memory file ไหนเป็นของทีม** (track อยู่ใน git):
+- does `.ai/context/` exist
+- project memory files at root (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) — which ones exist
+- **which memory files belong to the team** (tracked in git):
   ```bash
   git ls-files CLAUDE.md AGENTS.md GEMINI.md .claude/CLAUDE.md AGENTS.override.md
   ```
-  มีผลอย่างน้อย 1 ไฟล์ → **Team memory mode** (ดู 4.1) — แจ้ง dev ตั้งแต่ตอนนี้ว่าจะไม่แตะไฟล์เหล่านั้น
-- `.ai/context/MEMORY.md` มีหรือยัง (memory ส่วนตัวจาก Team memory mode รอบก่อน)
-- **Legacy context**: `.claude/context/`, `.codex/context/`, `.gemini/context/`, `.agents/context/` (ของเก่าที่แยกต่อ tool)
+  At least 1 result → **Team memory mode** (see 4.1) — tell the dev right now that those files will not be touched
+- does `.ai/context/MEMORY.md` exist (personal memory from a previous Team memory mode run)
+- **Legacy context**: `.claude/context/`, `.codex/context/`, `.gemini/context/`, `.agents/context/` (old per-tool setup)
 - **Legacy commands/agents/skills**: `.claude/commands/`, `.claude/agents/`, `.codex/prompts/`, `.codex/agents/`, `.codex/skills/`, `.agents/skills/`, `.agents/workflows/`
 
-> ⚠️ **project-level command ชนะ global เสมอ** — ถ้า repo มี `.claude/commands/spec.md` ค้างอยู่
-> `/spec` ใน repo นั้นจะได้ตัวเก่า ไม่ใช่ตัวกลาง และมักชี้ไป path ที่ย้ายไปแล้ว
-> **ต้องลบทิ้ง ห้ามแก้ path ให้มันแทน** — ไม่งั้นกลายเป็นชุดที่สองที่ต้องดูแลแยก
+> ⚠️ **project-level commands always win over global** — if the repo still has `.claude/commands/spec.md`,
+> `/spec` in that repo runs the old one, not the central one, and it usually points to paths that have moved.
+> **Delete it, do not fix its paths instead** — otherwise it becomes a second set to maintain separately.
 
-**ถ้าเจอ legacy** → เสนอ migrate:
+**If legacy found** → propose migration:
 ```
-พบ setup เดิมแยกตาม tool:
+Found old per-tool setup:
 
-Context (ต้องรวม):
-- .claude/context/specs/ ({N} ไฟล์)
-- .codex/context/specs/ ({N} ไฟล์)
+Context (must merge):
+- .claude/context/specs/ ({N} files)
+- .codex/context/specs/ ({N} files)
 
-Commands/agents (ต้องลบ — ชุดกลางที่ ~/.ai/ ทำหน้าที่นี้แล้ว):
-- .claude/commands/ ({N} ไฟล์), .claude/agents/ ({N} ไฟล์)
-- .codex/agents/ ({N} ไฟล์)
+Commands/agents (must delete — the central set at ~/.ai/ already does this):
+- .claude/commands/ ({N} files), .claude/agents/ ({N} files)
+- .codex/agents/ ({N} files)
 
-A) Migrate เต็ม — รวม context เป็น .ai/ + ลบ commands/agents เก่า (แนะนำ)
-B) Migrate context อย่างเดียว — คง commands เก่าไว้ (จะ override ชุดกลาง)
-C) Skip — สร้าง .ai/ เปล่าๆ
+A) Full migrate — merge context into .ai/ + delete old commands/agents (recommended)
+B) Migrate context only — keep old commands (they will override the central set)
+C) Skip — create an empty .ai/
 ```
 
 **Migration steps (option A):**
 
-1. **Context** → `git mv` ไปที่ `.ai/context/` (ห้าม copy+delete — history จะขาด)
-   - spec ที่ไม่มี Task ID มาตรฐาน (เช่น `TASK-POS-CRM-SSO.md`) → rename เป็น `TASK-YYYYMMDD-HHMM`
-     โดยใช้วันที่ commit แรกของไฟล์นั้น (`git log --diff-filter=A --format=%ad --date=format:%Y%m%d-%H%M -- <file> | tail -1`)
-     แล้ว**เขียน migration note** บนหัวไฟล์ว่า migrate มาจากชื่อเดิมอะไร
-   - spec ที่ task ID ซ้ำกันข้าม tool → แสดง diff แล้วถาม dev ทีละคู่
-2. **Commands/agents เก่า** → `git rm -r` ทิ้ง
-   ถ้าไฟล์มี local modification ค้าง → ตรวจ `git diff` ก่อนว่าเป็นแค่ path rewrite จริงไหม แล้วค่อย `git rm -rf`
-3. **`.claude/settings.json`** → แก้ permission ที่ตายแล้ว
+1. **Context** → `git mv` to `.ai/context/` (no copy+delete — history would break)
+   - specs without a standard Task ID (e.g. `TASK-POS-CRM-SSO.md`) → rename to `TASK-YYYYMMDD-HHMM`
+     using the file's first commit date (`git log --diff-filter=A --format=%ad --date=format:%Y%m%d-%H%M -- <file> | tail -1`)
+     then **write a migration note** at the top of the file stating its original name
+   - specs whose task ID collides across tools → show the diff and ask the dev pair by pair
+2. **Old commands/agents** → `git rm -r` them
+   If files have pending local modifications → check `git diff` first that it's really just a path rewrite, then `git rm -rf`
+3. **`.claude/settings.json`** → fix dead permissions
    - `Edit(.claude/context/**)` → `Edit(.ai/context/**)`
-   - ลบ `Edit(.claude/commands/**)`, `Edit(.claude/agents/**)` (ไม่มีโฟลเดอร์นั้นแล้ว)
-4. **ลบ directory ที่ว่างเปล่า** ที่เหลือจากการย้าย (เช่น `.codex/`)
-5. **เก็บไว้**: `.claude/settings.json` และไฟล์ note อื่นๆ ใน `.claude/*.md` ที่เป็นเอกสารของ project จริง
+   - remove `Edit(.claude/commands/**)`, `Edit(.claude/agents/**)` (those folders no longer exist)
+4. **Delete empty directories** left after the move (e.g. `.codex/`)
+5. **Keep**: `.claude/settings.json` and other note files in `.claude/*.md` that are real project docs
 
-**ถ้ามี `.ai/context/` ครบแล้ว และไม่มี `--force`** → รายงานว่าพร้อมใช้แล้ว + แนะนำ `/status` แล้วจบ
+**If `.ai/context/` is already complete and no `--force`** → report it's ready + suggest `/status`, then stop.
 
 ---
 
 ## Step 2: Analyze Codebase
 
-สำรวจของจริง (ห้ามข้าม step นี้):
+Survey the real code (never skip this step):
 
-| หัวข้อ | หาจาก |
+| Topic | Find from |
 |---|---|
 | Language / runtime | manifest file (`package.json`, `go.mod`, `pyproject.toml`, `pom.xml`, `Cargo.toml`, …) |
 | Framework | dependency list + entry point |
 | Package manager | lockfile (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `uv.lock`, …) |
-| Test runner + command | script section ใน manifest + config file |
+| Test runner + command | script section in manifest + config file |
 | Lint / format / typecheck | script section + config file |
 | Database / ORM | dependency + config/connection file |
 | Migration tool + command | script section + migration folder |
-| Module layout | โครงสร้างจริงของ source dir (ห้ามสมมติว่าเป็น `src/modules/`) |
-| Layering pattern | อ่าน module ตัวอย่าง 1-2 ตัว |
-| Error handling | หา custom exception / error class ที่ใช้อยู่ |
-| Auth | หา guard / middleware / decorator |
-| Multi-tenant | หา tenant key ที่ repeat ในหลาย query (เช่น `storeCode`, `tenantId`, `orgId`) |
-| API shape | response wrapper / envelope ที่ใช้อยู่ |
-| Naming convention | ดูจากชื่อไฟล์ + ชื่อ class/function จริง |
+| Module layout | real source dir structure (don't assume `src/modules/`) |
+| Layering pattern | read 1-2 sample modules |
+| Error handling | find custom exception / error classes in use |
+| Auth | find guard / middleware / decorator |
+| Multi-tenant | find a tenant key repeated across queries (e.g. `storeCode`, `tenantId`, `orgId`) |
+| API shape | response wrapper / envelope in use |
+| Naming convention | from real file names + class/function names |
 | CI | `.github/workflows/`, `.gitlab-ci.yml` |
 
-**Git info**: `git config user.name`, `git log --oneline -20` (ดู commit message convention)
+**Git info**: `git config user.name`, `git log --oneline -20` (see commit message convention)
 
-**Team memory mode**: อ่าน memory file ของทีมทุกตัวก่อน — เป็น rule ที่ทีมตกลงแล้ว (authoritative)
-analyze เพื่อหา **ส่วนที่ไฟล์ของทีมยังไม่มี** + จุดที่ไฟล์ของทีม**ไม่ตรงกับ code** (เก็บไว้ใส่ Final Report)
+**Team memory mode**: read every team memory file first — they are rules the team agreed on (authoritative).
+Analyze to find **what the team files don't cover yet** + where the team files **don't match the code** (keep for the Final Report).
 
 ---
 
 ## Step 3: Show Findings + Confirm
 
-สรุปสิ่งที่เจอให้ dev ตรวจก่อนเขียนไฟล์:
+Summarize findings for the dev to check before writing files:
 
 ```
 ## Codebase Analysis
@@ -148,100 +151,102 @@ analyze เพื่อหา **ส่วนที่ไฟล์ของที
 **Migration**: `{command}`
 
 **Module layout**: `{path pattern}` ({N} modules: {list})
-**Layering**: {ที่เจอจริง เช่น Controller → UseCase → Repository → Entity}
-**Error handling**: {ที่เจอจริง}
-**Auth**: {ที่เจอจริง}
-**Multi-tenant**: {tenant key ที่เจอ | "ไม่พบ — single tenant"}
-**Commit convention**: {ที่เห็นจาก git log}
+**Layering**: {what was actually found, e.g. Controller → UseCase → Repository → Entity}
+**Error handling**: {what was actually found}
+**Auth**: {what was actually found}
+**Multi-tenant**: {tenant key found | "not found — single tenant"}
+**Commit convention**: {what git log shows}
 
-### ❓ ยืนยันหน่อย
-1. {จุดที่อ่าน code แล้วยังไม่ชัด — สูงสุด 3 ข้อ}
+### ❓ Please confirm
+1. {points still unclear after reading code — max 3}
 
-### ไฟล์ที่จะสร้าง
+**Context language**: {en | th} (change with `--lang`)
+
+### Files to create
 - `{memory file}` — project memory
-  (Team memory mode: `.ai/context/MEMORY.md` แทน — ไม่แตะ `{team memory files}` ของทีม)
+  (Team memory mode: `.ai/context/MEMORY.md` instead — team's `{team memory files}` untouched)
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/features.md`
 - `.ai/context/untracked.md`
 - `.ai/context/specs/.gitkeep`
 
-และแก้ `.git/info/exclude` — context ทั้งชุดจะเป็น **local-only** ไม่ถูก commit ขึ้น repo
+and edit `.git/info/exclude` — the whole context set will be **local-only**, never committed to the repo
 
-พิมพ์ "confirm" เพื่อสร้าง
+Type "confirm" to create
 ```
 
-**รอ confirm ก่อนเขียนไฟล์เสมอ**
+**Always wait for confirm before writing files.**
 
 ---
 
 ## Step 4: Write Files
 
-ใช้ template จาก `~/.ai/templates/` เป็นโครง แล้วเติมด้วยข้อมูลจริงจาก Step 2
+Use templates from `~/.ai/templates/` as the skeleton, filled with real data from Step 2.
 
-**4.1 Project memory file** (root) — ตั้งชื่อตาม assistant ที่กำลังรันอยู่
-ถ้ามีไฟล์อื่นในตระกูลเดียวกันอยู่แล้ว (เช่นมี `CLAUDE.md` แต่กำลังรัน Codex) → **ห้ามสร้างซ้ำ**
-สร้าง `AGENTS.md` ที่มีบรรทัดเดียวชี้ไปหาของเดิมแทน:
+**4.1 Project memory file** (root) — named after the assistant currently running.
+If another file from the same family already exists (e.g. `CLAUDE.md` exists but Codex is running) → **don't create a duplicate**.
+Create an `AGENTS.md` with a single line pointing to the existing one instead:
 ```markdown
 See [CLAUDE.md](CLAUDE.md) — same content, single source of truth.
 ```
 
-Content = template `project-memory.md` เติมด้วย: domain model, tech stack, layering, critical rules, conventions, directory structure ที่อ่านมาจริง
+Content = template `project-memory.md` filled with: domain model, tech stack, layering, critical rules, conventions, directory structure as actually read.
 
-**Team memory mode** (Step 1 เจอ memory file ที่ track อยู่) — แทนที่กติกาด้านบนทั้งหมด:
-- ❌ **ห้ามแก้ / เขียนเพิ่ม / เขียนทับ / rename** memory file ที่ track อยู่ — แม้มี `--force`
-- ❌ **ห้ามสร้าง memory file ใหม่ที่ root** (รวมไฟล์ pointer บรรทัดเดียว) — วันที่ทีมเพิ่มไฟล์ชื่อนั้น `git pull` จะชนกับไฟล์ untracked
-- ✅ เขียน memory ส่วนตัวที่ **`.ai/context/MEMORY.md`** (exclude ไปกับ `.ai/` อยู่แล้ว) — template `project-memory.md` เดียวกัน แต่:
-  - บรรทัดบนสุด: `> Team memory: {team memory files} (tracked — อ่านก่อนไฟล์นี้ / ขัดกัน → ของทีมชนะ)`
-  - เขียน **เฉพาะส่วนที่ไฟล์ของทีมยังไม่มี** — หัวข้อที่ทีมเขียนไว้แล้วให้เขียนแค่ `ดู {team file} › {หัวข้อ}` ❌ ห้าม copy มาซ้ำ
-  - มี `MEMORY.md` อยู่แล้ว → merge ไม่ทับ (ยกเว้น `--force`)
-- memory file ที่มีอยู่แต่ **ไม่ได้ track** (ของ dev เอง) → ไม่ใช่ของทีม ใช้กติกาปกติด้านบน
+**Team memory mode** (Step 1 found a tracked memory file) — replaces all rules above:
+- ❌ **never edit / append / overwrite / rename** tracked memory files — even with `--force`
+- ❌ **never create a new memory file at root** (including a one-line pointer file) — the day the team adds a file with that name, `git pull` will conflict with the untracked file
+- ✅ write personal memory to **`.ai/context/MEMORY.md`** (already excluded with `.ai/`) — same `project-memory.md` template, but:
+  - top line: `> Team memory: {team memory files} (tracked — read before this file / on conflict → team wins)`
+  - write **only what the team files don't cover yet** — for topics the team already wrote, write only `see {team file} › {topic}` ❌ never copy them over
+  - `MEMORY.md` already exists → merge, don't overwrite (unless `--force`)
+- an existing memory file that is **not tracked** (the dev's own) → not the team's, use the normal rules above
 
-ถ้า repo อยู่ใน multi-repo project (Step 0 เจอ `PROJECT.md` หรือกำลังรันจาก Project Mode) → คงบรรทัด **Multi-repo project** ใน template ไว้ (ชี้ path สัมพัทธ์ไปหา shared context)
-แล้วเขียนเฉพาะของ repo นี้ — domain / convention ที่อยู่ใน shared แล้วให้อ้างไปแทนการ copy
-ถ้าไม่ใช่ → ลบบรรทัดนั้นออก
+If the repo is in a multi-repo project (Step 0 found `PROJECT.md` or running from Project Mode) → keep the **Multi-repo project** line in the template (relative path to the shared context),
+then write only this repo's specifics — domain / conventions already in shared are referenced instead of copied.
+Otherwise → remove that line.
 
-**4.2 `.ai/context/ARCHITECTURE.md`** — ADR + patterns + anti-patterns ที่ detect ได้
-ทุก entry ต้องอ้าง file path จริงเป็นหลักฐาน
+**4.2 `.ai/context/ARCHITECTURE.md`** — ADRs + patterns + anti-patterns detected.
+Every entry must cite a real file path as evidence.
 
-**4.3 `.ai/context/features.md`** — ใช้ template เปล่า (จะถูก regen ด้วย `/reindex`)
+**4.3 `.ai/context/features.md`** — empty template (regenerated by `/reindex`)
 
-**4.4 `.ai/context/untracked.md`** — list shared infra ที่ไม่นับเป็น feature (common/, utils/, config/)
+**4.4 `.ai/context/untracked.md`** — list shared infra not counted as features (common/, utils/, config/)
 
 **4.5 `.ai/context/specs/.gitkeep`**
 
-**4.6 Local-only context (default)** — ทำให้ context เห็นเฉพาะเครื่องนี้
+**4.6 Local-only context (default)** — make context visible on this machine only
 
-เพิ่มเข้า `.git/info/exclude` ของ repo งาน (exclude ระดับ clone — ไฟล์นี้ไม่มีทางถูก commit/push ติดไปด้วย):
-- memory file ที่สร้างจริง (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) — Team memory mode ไม่มี (ไม่ได้สร้างที่ root)
+Add to the working repo's `.git/info/exclude` (clone-level exclude — this file can never be committed/pushed along):
+- the memory file actually created (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) — none in Team memory mode (nothing created at root)
 - `.ai/`
 
-❌ ห้ามใส่ไฟล์ที่ track อยู่ลง exclude — ไม่มีผลกับไฟล์ที่ track แล้ว และทำให้เข้าใจผิดว่าซ่อนอยู่
+❌ Never add tracked files to exclude — it has no effect on tracked files and misleadingly suggests they're hidden.
 
 ```
 AGENTS.md
 .ai/
 ```
 
-- ไฟล์ context ทั้งชุดยังอยู่ครบและใช้งานได้ปกติ — แค่ git มองไม่เห็น (`git status` ต้องไม่แสดง)
-- ❌ อย่าใช้ `.gitignore` ของ repo เพราะไฟล์นั้นต้อง commit — คนอื่นจะรู้ทันทีว่ามี context ซ่อนอยู่
-- ไม่ต้องสร้าง `.gitattributes` — `features.md` ไม่ถูก push แล้ว จึงไม่มี merge conflict
-- ถ้าวันหน้าจะ share ให้ทีม: ลบบรรทัดพวกนี้ออกจาก `.git/info/exclude` แล้ว `git add` + commit ตามปกติ
-  (ถ้าเคยมี `.gitattributes` `merge=ours` ค้างจาก flow เก่า ให้พูดถึงใน final report ว่ายังอยู่แต่ไม่จำเป็นแล้ว)
+- The whole context set still exists and works normally — git just can't see it (`git status` must not show it)
+- ❌ Don't use the repo's `.gitignore` — that file must be committed, so others would immediately know hidden context exists
+- No need to create `.gitattributes` — `features.md` is no longer pushed, so no merge conflicts
+- To share with the team later: remove these lines from `.git/info/exclude`, then `git add` + commit normally
+  (if a `.gitattributes` `merge=ours` remains from the old flow, mention in the final report that it's still there but no longer needed)
 
 ---
 
 ## Step 5: Retroactive Spec (optional)
 
-ถ้า repo มี code อยู่แล้วเยอะ:
+If the repo already has a lot of code:
 
 ```
-Repo นี้มี {N} modules อยู่แล้วแต่ยังไม่มี spec
+This repo already has {N} modules but no specs
 
-A) ปล่อยไว้ก่อน — feature ใหม่ค่อยใช้ /spec (แนะนำ)
-B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan code เท่าไหร่ แล้วทยอยสร้าง spec ย้อนหลัง
+A) Leave it for now — use /spec for new features (recommended)
+B) Run /sync now — see how much orphan code there is, then gradually create retroactive specs
 ```
 
-**ห้าม generate spec ย้อนหลังอัตโนมัติทั้ง repo** — token เยอะและคุณภาพต่ำ
+**Never auto-generate retroactive specs for the whole repo** — token-heavy and low quality.
 
 ---
 
@@ -251,116 +256,117 @@ B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan 
 ## ✅ Project Initialized
 
 ### Files Created
-- `{memory file}` ({N} lines)   ← Team memory mode: `.ai/context/MEMORY.md` ({N} lines) — `{team memory files}` ไม่ถูกแตะ
+- `{memory file}` ({N} lines)   ← Team memory mode: `.ai/context/MEMORY.md` ({N} lines) — `{team memory files}` untouched
 - `.ai/context/ARCHITECTURE.md` ({N} ADRs)
 - `.ai/context/features.md` (empty index)
 - `.ai/context/untracked.md` ({N} entries)
 - `.ai/context/specs/` (empty)
 
-### ⚠️ ต้อง review เอง
-{จุดที่เดาจาก code แล้วอาจไม่ตรงเจตนาจริง}
+### ⚠️ Review yourself
+{points inferred from code that may not match real intent}
 1. ...
 
-### 💬 เสนอทีม (Team memory mode — ถ้ามี)
-จุดที่ memory file ของทีม**ไม่ตรงกับ code** หรือขาดเรื่องสำคัญ — AI ไม่แก้ให้ dev ตัดสินใจเอง (เช่นเปิด PR):
-- `{team file}` › {หัวข้อ}: เขียนว่า {X} แต่ code จริง {Y} — evidence `{path}`
+### 💬 Suggestions for the team (Team memory mode — if any)
+Where the team memory file **doesn't match the code** or misses something important — AI doesn't fix it, the dev decides (e.g. open a PR):
+- `{team file}` › {topic}: says {X} but the code actually does {Y} — evidence `{path}`
   ```diff
-  {diff ที่เสนอ}
+  {proposed diff}
   ```
 
-### Migration Summary (ถ้ามี)
-- ย้าย: {N} spec files → `.ai/context/specs/` (git mv)
-- Rename: {N} spec ที่ไม่มี Task ID มาตรฐาน
-- ลบ: {N} legacy commands/agents
-- แก้: `.claude/settings.json` permission
+### Migration Summary (if any)
+- Moved: {N} spec files → `.ai/context/specs/` (git mv)
+- Renamed: {N} specs without a standard Task ID
+- Deleted: {N} legacy commands/agents
+- Fixed: `.claude/settings.json` permissions
 
 ### Next Steps
-1. Review `{memory file}` + `ARCHITECTURE.md` — แก้ตรงที่ไม่ถูกได้เลย
-2. ตรวจว่า `git status` **ไม่แสดง** `.ai/` และ memory file — context เป็น local-only (exclude ไว้ที่ `.git/info/exclude` แล้ว) ไม่ต้อง commit และ ❌ อย่า commit
-   (Team memory mode: memory file ของทีมต้อง **ไม่มี diff** — `git diff --stat {team files}` ว่าง)
-3. `/spec <requirement>` เพื่อเริ่ม feature แรก
-4. `/sync` ถ้าอยากรู้ว่ามี code ที่ยังไม่มี spec เท่าไหร่
+1. Review `{memory file}` + `ARCHITECTURE.md` — fix anything wrong directly
+2. Check that `git status` **does not show** `.ai/` or the memory file — context is local-only (excluded in `.git/info/exclude`), no need to commit, and ❌ don't commit
+   (Team memory mode: team memory files must have **no diff** — `git diff --stat {team files}` is empty)
+3. `/spec <requirement>` to start the first feature
+4. `/sync` to see how much code has no spec yet
 ```
 
 ---
 
 ## Project Mode
 
-ทำ 2 ส่วนตามลำดับ: **shared context** ที่ `<project>/.ai/context/` → **repo-level** ของแต่ละ repo ข้างใน
-จำนวน repo และชื่อไม่ fix — ใช้ตามที่ตรวจเจอจริงเท่านั้น
+Do 2 parts in order: **shared context** at `<project>/.ai/context/` → **repo-level** for each repo inside.
+Number and names of repos are not fixed — use only what is actually detected.
 
 ### P1. Detect
 
-- **repo** = ลูกตรงของ project ที่มี `.git` ของตัวเอง และ `git -C <dir> rev-parse --show-toplevel` = dir นั้น
-- **ไม่ใช่ repo** → ข้ามพร้อมเหตุผล: `not a git repository` / `invalid .git` (rev-parse fail)
-- hidden dir (`.ai`, `.idea`, ...) และ `node_modules` ไม่นับ
-- ต่อ repo เช็คต่อ: มี `.ai/context/` ครบแล้วไหม, มี legacy setup (Step 1) ไหม
-- shared: มี `<project>/.ai/context/` แล้วไหม
+- **repo** = direct child of the project with its own `.git`, where `git -C <dir> rev-parse --show-toplevel` = that dir
+- **not a repo** → skip with reason: `not a git repository` / `invalid .git` (rev-parse fails)
+- hidden dirs (`.ai`, `.idea`, ...) and `node_modules` don't count
+- per repo also check: is `.ai/context/` already complete, is there a legacy setup (Step 1)
+- shared: does `<project>/.ai/context/` already exist
 
 ### P2. Confirm Plan
 
 ```
 ## Project: {project dir}
 
-Shared context: {project}/.ai/context/   {สร้างใหม่ | มีแล้ว — merge ไม่ทับ | มีแล้ว — ทับ (--force)}
+Shared context: {project}/.ai/context/   {create new | exists — merge, no overwrite | exists — overwrite (--force)}
+Context language: {en | th} (shared + every repo below — change with --lang)
 
 Detected repositories:
-  ✓ api        → จะ init
-  ✓ web        → จะ init
-  ✓ worker     → ข้าม (มี .ai/context/ ครบแล้ว — ใช้ --force ถ้าจะทำใหม่)
+  ✓ api        → will init
+  ✓ web        → will init
+  ✓ worker     → skip (.ai/context/ already complete — use --force to redo)
   - docs       (not a git repository)
 
-A) ทำ shared + ทุก repo ที่ติ๊ก ✓ (แนะนำ)
-B) ทำ shared อย่างเดียว — แล้ว cd <repo> && /ai-init ทีละตัวทีหลัง
-C) เลือก repo เอง: {ชื่อ}
+A) Do shared + every ✓ repo (recommended)
+B) Shared only — then cd <repo> && /ai-init one by one later
+C) Pick repos: {names}
 ```
 
-**รอ dev เลือกก่อนเขียนไฟล์เสมอ**
+**Always wait for the dev's choice before writing files.**
 
-### P3. Shared Context — Analyze (เบาๆ ห้ามอ่าน code ทั้ง project)
+### P3. Shared Context — Analyze (light — never read code of the whole project)
 
-ต่อ repo อ่านแค่:
-- memory file + `.ai/context/ARCHITECTURE.md` ของ repo (ถ้ามีแล้ว) — ใช้แทนการอ่าน code
+Per repo read only:
+- the repo's memory file + `.ai/context/ARCHITECTURE.md` (if present) — use instead of reading code
 - manifest (`package.json`, `go.mod`, ...) → stack
-- จุดที่ repo คุยกัน: base URL / API client / OpenAPI / proto / queue topic / env ที่ชี้ไป repo อื่น
-- `git log --oneline -10` → commit convention ที่ใช้ร่วมกันไหม
+- where repos talk to each other: base URL / API client / OpenAPI / proto / queue topic / env pointing to another repo
+- `git log --oneline -10` → is a commit convention shared
 
 ### P4. Shared Context — Write
 
-ใช้ template จาก `~/.ai/templates/project/` เติมด้วยของจริงจาก P3 (ลบบรรทัด `<!-- TEMPLATE: ... -->` ออก)
+Use templates from `~/.ai/templates/project/` filled with real data from P3 (remove `<!-- TEMPLATE: ... -->` lines).
 
-| ไฟล์ | ใส่อะไร | ❌ ห้ามใส่ |
+| File | Contains | ❌ Must not contain |
 |---|---|---|
-| `PROJECT.md` | repo list, domain ร่วม, context map | รายละเอียด stack/layering ของ repo ใด repo หนึ่ง |
-| `ARCHITECTURE.md` | system overview + ADR ที่กระทบ ≥ 2 repo | ADR ของ repo เดียว |
-| `conventions.md` | convention ที่ **เหมือนกันจริง** ในหลาย repo | ของที่ต่างกันต่อ repo |
-| `integrations.md` | contract ระหว่าง repo พร้อม path จริง | — |
+| `PROJECT.md` | repo list, shared domain, context map | stack/layering details of any single repo |
+| `ARCHITECTURE.md` | system overview + ADRs affecting ≥ 2 repos | single-repo ADRs |
+| `conventions.md` | conventions **actually identical** across repos | things that differ per repo |
+| `integrations.md` | contracts between repos with real paths | — |
 
-เพิ่ม (สำหรับ cross-repo task — ดู AI.md › Cross-repo Task):
-- `features.md` — template เปล่าจาก `~/.ai/templates/features.md` (`/reindex` ที่ root ของ project regen ให้)
-- `specs/.gitkeep` — เก็บเฉพาะ spec ที่แตะ ≥ 2 repo / spec ของ repo เดียวยังอยู่ใน repo นั้น
+Also add (for cross-repo tasks — see AI.md › Cross-repo Task):
+- `features.md` — empty template from `~/.ai/templates/features.md` (`/reindex` at the project root regenerates it)
+- `specs/.gitkeep` — only specs touching ≥ 2 repos / single-repo specs stay in that repo
 
-**Project memory file** ที่ root ของ project — สั้นๆ ชี้ path เท่านั้น (ชื่อตาม assistant ที่รันอยู่ — กติกาเดียวกับ 4.1)
-root ของ project เป็น git repo ที่ track memory file ไว้แล้ว → ข้าม (Team memory mode — `PROJECT.md` ทำหน้าที่แทน)
-ใช้ตอน dev เปิด session ที่ root ของ project สำหรับงานข้าม repo:
+**Project memory file** at the project root — short, paths only (named after the running assistant — same rules as 4.1).
+Project root is a git repo that already tracks a memory file → skip (Team memory mode — `PROJECT.md` serves instead).
+Used when the dev opens a session at the project root for cross-repo work:
 ```markdown
 # {Project Name}
 Multi-repo project — shared context: [.ai/context/PROJECT.md](.ai/context/PROJECT.md)
-อ่าน `PROJECT.md` ก่อน แล้วโหลด `<repo>/.ai/context/` เฉพาะ repo ที่ task แตะ
+Read `PROJECT.md` first, then load `<repo>/.ai/context/` only for repos the task touches
 ```
 
-**Local-only**: root ของ project ไม่ใช่ git repo → ไม่ต้องทำอะไร / เป็น git repo → exclude `.ai/` + memory file เหมือน 4.6
+**Local-only**: project root is not a git repo → nothing to do / is a git repo → exclude `.ai/` + memory file as in 4.6
 
-### P5. Repo-level — ทีละ repo
+### P5. Repo-level — one repo at a time
 
-ทำ Step 1-4 ของ Repo mode กับแต่ละ repo ที่เลือกใน P2 โดย:
-- shared context จาก P4 คือสิ่งที่มีแล้ว → **ห้ามเขียนซ้ำ** ลง memory file / `.ai/` ของ repo — อ้าง path แทน
-- **ประหยัด context**: ถ้า runtime รองรับ subagent → delegate Step 2 (analyze) ของแต่ละ repo ให้ subagent แยก (ขนานได้) แล้วรับกลับมาแค่ผลสรุป
-  ถ้าไม่รองรับ → ทำทีละ repo จนจบแล้วค่อยไป repo ถัดไป ไม่อ่าน code หลาย repo พร้อมกัน
-- Step 3 (confirm) รวมเป็นรอบเดียว: แสดงผล analyze ของทุก repo แล้ว confirm ครั้งเดียว
-- repo ไหน error (อ่าน/เขียนไม่ได้, legacy migrate ไม่ผ่าน) → บันทึกเหตุผล แล้ว **ทำ repo ถัดไปต่อ** ห้ามหยุดทั้งหมด
-- legacy setup ใน repo → ถามตามกติกา Step 1 ของ repo นั้น
-- ❌ ห้ามแตะ repo ที่ dev ไม่ได้เลือก หรือที่มี `.ai/` ครบแล้ว (ยกเว้น `--force`)
+Run Repo mode Step 1-4 on each repo chosen in P2, where:
+- the shared context from P4 already exists → **never duplicate it** into the repo's memory file / `.ai/` — reference the path instead
+- **save context**: if the runtime supports subagents → delegate each repo's Step 2 (analyze) to a separate subagent (parallel OK) and take back only the summary
+  if not → finish one repo completely before moving to the next; don't read code of multiple repos at once
+- Step 3 (confirm) is merged into one round: show the analysis of all repos, then confirm once
+- a repo errors (can't read/write, legacy migrate fails) → record the reason and **continue with the next repo** — never stop everything
+- legacy setup in a repo → ask per Step 1 rules for that repo
+- ❌ never touch repos the dev didn't choose, or repos whose `.ai/` is already complete (unless `--force`)
 
 ### P6. Final Report
 
@@ -380,23 +386,23 @@ Multi-repo project — shared context: [.ai/context/PROJECT.md](.ai/context/PROJ
   ✓ web/.ai + web/{memory file}
 
 ### Skipped
-  - worker: .ai/context/ มีอยู่แล้ว (ใช้ --force ถ้าจะทำใหม่)
+  - worker: .ai/context/ already exists (use --force to redo)
   - docs: not a git repository
 
 ### Failed
-  ✗ {repo}: {เหตุผล}
+  ✗ {repo}: {reason}
 
 ### Summary
   installed {N} · skipped {N} · failed {N}
 
-### ⚠️ ต้อง review เอง
-1. {contract / convention ที่เดาจาก code แล้วอาจไม่ตรง}
+### ⚠️ Review yourself
+1. {contracts / conventions inferred from code that may be wrong}
 
 ### Next Steps
 1. Review `{project}/.ai/context/PROJECT.md` + `integrations.md`
-2. repo ที่ข้าม/fail → `cd <repo> && /ai-init`
-3. repo ใหม่ที่เพิ่มทีหลัง → `cd <repo> && /ai-init` (จะเจอ shared เอง) แล้วเพิ่มแถวใน `PROJECT.md`
-4. task ที่แตะหลาย repo → `cd {project} && /spec <requirement>` (cross-repo spec)
+2. skipped/failed repos → `cd <repo> && /ai-init`
+3. repos added later → `cd <repo> && /ai-init` (finds shared automatically) then add a row in `PROJECT.md`
+4. tasks touching multiple repos → `cd {project} && /spec <requirement>` (cross-repo spec)
 ```
 
 ---
@@ -404,27 +410,45 @@ Multi-repo project — shared context: [.ai/context/PROJECT.md](.ai/context/PROJ
 ## Rules
 
 ### Must Do
-- **อ่าน code จริงก่อนเขียนทุกบรรทัด** — ทุก claim ต้องมี file path อ้างอิง
-- **Confirm ก่อนเขียนไฟล์**
-- **Merge ไม่ทับ** ถ้ามีไฟล์อยู่แล้ว (ยกเว้น `--force`)
-- **รวม context เป็น `.ai/` ชุดเดียว** — ไม่แตกตาม tool
-- **Multi-repo: shared อยู่ที่ `<project>/.ai/` ที่เดียว** — repo อ้าง path ไม่ copy
-- **ลบ commands/agents เก่าของ project ทิ้ง** — ชุดกลางที่ `~/.ai/` ทำหน้าที่แทนแล้ว
-- **ใช้ `git mv` / `git rm` เสมอ** เวลาย้ายหรือลบไฟล์ที่ track อยู่ — history ต้องไม่ขาด
+- **Read real code before writing any line** — every claim needs a file path reference
+- **Confirm before writing files**
+- **Merge, don't overwrite** existing files (unless `--force`)
+- **Consolidate context into a single `.ai/`** — not split per tool
+- **Multi-repo: shared lives only in `<project>/.ai/`** — repos reference the path, don't copy
+- **Delete the project's old commands/agents** — the central set at `~/.ai/` replaces them
+- **Always use `git mv` / `git rm`** when moving or deleting tracked files — history must not break
 
 ### Must Not
-- ❌ **เขียน stack/pattern ที่ไม่ได้ verify จาก code** — ถ้าไม่เจอให้เขียนว่า "ไม่พบ" ไม่ใช่เดา
-- ❌ **ลบหรือทับไฟล์ที่มีอยู่โดยไม่ถาม**
-- ❌ **สร้าง memory file ซ้ำซ้อน** ถ้ามีตัวอื่นในตระกูลเดียวกันแล้ว
-- ❌ **แตะ memory file ที่ทีม track อยู่** (แม้มี `--force`) — memory ส่วนตัวไปที่ `.ai/context/MEMORY.md`
-- ❌ **แก้ path ใน `.claude/commands/` เก่าแทนการลบ** — project-level ชนะ global จะกลายเป็นชุดที่สอง
-- ❌ **Generate spec ย้อนหลังทั้ง repo อัตโนมัติ**
-- ❌ **Copy shared context ลง repo** — repo อ้าง path ไปหา `<project>/.ai/context/`
-- ❌ **Hardcode ชื่อ repo** (เช่น web/api) — ใช้ตามที่ detect เจอเท่านั้น
-- ❌ **commit / push `.ai/` หรือ memory file** — context เป็น local-only ของเครื่องนี้ (เว้นแต่ dev สั่งเอง)
+- ❌ **Write stack/patterns not verified from code** — if not found, write "not found", don't guess
+- ❌ **Delete or overwrite existing files without asking**
+- ❌ **Create a duplicate memory file** if another from the same family exists
+- ❌ **Touch team-tracked memory files** (even with `--force`) — personal memory goes to `.ai/context/MEMORY.md`
+- ❌ **Fix paths in old `.claude/commands/` instead of deleting** — project-level wins over global, it becomes a second set
+- ❌ **Auto-generate retroactive specs for the whole repo**
+- ❌ **Copy shared context into a repo** — repos reference `<project>/.ai/context/`
+- ❌ **Hardcode repo names** (e.g. web/api) — use only what is detected
+- ❌ **Commit / push `.ai/` or the memory file** — context is local-only to this machine (unless the dev says so)
+
+---
+
+## Context Language
+
+Templates in `~/.ai/templates/` are English. `--lang` picks the language of the **prose** written into context files
+(memory file / `MEMORY.md`, `ARCHITECTURE.md`, `untracked.md`, and in Project Mode `PROJECT.md`, `conventions.md`, `integrations.md`):
+
+| `--lang` | Prose | Always English |
+|---|---|---|
+| `en` (default) | English — fewer tokens, these files load on every session | headings, table headers, technical terms, paths, code, commands |
+| `th` | Thai | same |
+
+- Same structure either way — only prose changes; never maintain a second template set
+- Merging into an existing file (no `--force`) → keep **that file's existing language**, ignore `--lang`
+- Project Mode: one `--lang` for shared + every repo in the run
+- Spec files are not affected — spec content is always Thai (see `~/.ai/AI.md` › Output Language)
 
 ---
 
 ## Output Language
 
-ตอบ dev เป็นภาษาไทย / เนื้อหาไฟล์ตามรูปแบบใน template (ไทย + technical term อังกฤษ)
+- Reply to the dev in Thai (technical terms may stay English)
+- Context files → language per [Context Language](#context-language)

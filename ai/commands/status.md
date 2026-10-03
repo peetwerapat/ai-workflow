@@ -1,41 +1,43 @@
 ---
-description: ดูภาพรวม features หรือ filter ตาม task-id / module / keyword / developer
+description: Feature overview, or filter by task-id / module / keyword / developer
 argument-hint: [mine | done | <task-id> | <module> | <keyword>]
 ---
 
 # /status — Feature Status Overview
 
-Read-only command สำหรับดูภาพรวม features และหาข้อมูลเร็วๆ
-**ไม่แก้ไฟล์อะไรทั้งสิ้น** — ปลอดภัยรันบ่อยๆ
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
+
+Read-only command for a feature overview and quick lookups
+**Does not modify any file** — safe to run often
 
 ## Context Files
 
 - `.ai/context/features.md`
 
-**ถ้าไม่มี `.ai/context/`** → แจ้งให้รัน `/ai-init` แล้วหยุด
+**If `.ai/context/` doesn't exist** → tell the dev to run `/ai-init` and stop
 
-**Multi-repo project**: รันใน repo → `features.md` ของ repo มี section `# Cross-repo` อยู่แล้ว (จาก `/reindex`)
-รันที่ root ของ project → `features.md` ของ project (cross-repo task) — ถ้าต้องการภาพรวมทุก repo ให้อ่าน At a Glance ของ `features.md` แต่ละ repo เพิ่ม (ไม่อ่าน spec)
+**Multi-repo project**: run in a repo → the repo's `features.md` already has a `# Cross-repo` section (from `/reindex`)
+Run at the project root → the project's `features.md` (cross-repo tasks) — for an overview of all repos, also read the At a Glance of each repo's `features.md` (don't read specs)
 
 ## Runtime Info
 
 ```bash
 git config user.name
 ```
-ใช้สำหรับ `mine` filter
+Used for the `mine` filter
 
 ---
 
 ## Input
 
-**$ARGUMENTS** — dispatch ตาม priority:
+**$ARGUMENTS** — dispatch by priority:
 
 1. **Empty** → Overview mode
-2. **`mine`** → filter ตาม current git user
-3. **`done`** → list ✅ ทั้งหมด (ที่ overview ซ่อนไว้)
-4. **Match task-id** (`TASK-\d{8}-\d{4}` หรือ `[A-Z]+-\d+`) → Detail view
-5. **Match module name** (H1 ใน features.md) → Module filter
-6. **อื่นๆ** → Keyword search
+2. **`mine`** → filter by current git user
+3. **`done`** → list all ✅ (hidden in overview)
+4. **Match task-id** (`TASK-\d{8}-\d{4}` or `[A-Z]+-\d+`) → Detail view
+5. **Match module name** (H1 in features.md) → Module filter
+6. **Anything else** → Keyword search
 
 ---
 
@@ -44,11 +46,11 @@ git config user.name
 parse:
 - `At a Glance` counts + `Last reindex` timestamp
 - Module sections (`# {Module Name}`)
-- Feature entries (1 บรรทัด: `- {icon} [TASK-id](link) — {Title} ({Dev}) — updated {date}`)
+- Feature entries (1 line: `- {icon} [TASK-id](link) — {Title} ({Dev}) — updated {date}`)
 - `# Archived` section
 
-> `features.md` เป็น index — รายละเอียดอยู่ใน spec file
-> Detail mode เท่านั้นที่ follow link เข้าไปอ่าน spec
+> `features.md` is an index — details live in the spec file
+> Only Detail mode follows the link to read the spec
 
 ---
 
@@ -56,9 +58,9 @@ parse:
 
 ### 🔹 Overview (no args)
 
-แสดง active items — **ไม่รวม ✅ Done** (ปกติเยอะเกิน)
+Show active items — **exclude ✅ Done** (usually too many)
 
-เรียง: 🔴 Blocked > 🚧 In Progress > 📋 Planned
+Order: 🔴 Blocked > 🚧 In Progress > 📋 Planned
 
 ```
 ## Project Status
@@ -74,13 +76,13 @@ parse:
 ### 📋 Planned ({count})
 - {task-id} ({module}): {name} — created {relative time}
 
-> {X} completed features hidden — `/status done` เพื่อดูทั้งหมด
+> {X} completed features hidden — `/status done` to see all
 ```
 
 ### 🔹 Mine
 
-features ที่ `**Created**:` / `**Last Updated**:` match current git user
-หรือมี recent commit โดย user นี้ในไฟล์ของ feature
+Features whose `**Created**:` / `**Last Updated**:` match the current git user
+or that have recent commits by this user in the feature's files
 
 ```
 ## Your Tasks ({git user.name})
@@ -88,25 +90,25 @@ features ที่ `**Created**:` / `**Last Updated**:` match current git user
 ### 🚧 In Progress ({count})
 - {task-id}: {name}
   - Last commit: {abbrev} "{message}" ({relative time})
-  - Next: {hint จาก Known Gotchas / Implementation Status}
+  - Next: {hint from Known Gotchas / Implementation Status}
   - Spec: `.ai/context/specs/{task-id}.md`
 
-### ✅ Recently Done (7 วันล่าสุด)
+### ✅ Recently Done (last 7 days)
 - {task-id}: {name} — done {relative time}
 
 ### 📋 Planned
 - {task-id}: {name}
 
-> ไม่มี task ของคุณตอนนี้ — `/spec` เพื่อเริ่ม feature ใหม่
+> You have no tasks right now — `/spec` to start a new feature
 ```
 
 git: `git log --author="{user.name}" --since="7 days ago" --oneline | head -20`
 
 ### 🔹 Task Detail
 
-อ่าน spec file: `.ai/context/specs/TASK-{id}.md` (หรือ `CLOSED-TASK-{id}.md`) — ไม่เจอ → หาที่ `<project>/.ai/context/specs/` (AI.md › Cross-repo Task)
+Read spec file: `.ai/context/specs/TASK-{id}.md` (or `CLOSED-TASK-{id}.md`) — not found → look in `<project>/.ai/context/specs/` (AI.md › Cross-repo Task)
 
-cross-repo spec → เพิ่มบรรทัด `**Repos**:` + ตาราง Implementation Status ต่อ repo และ Next Actions ชี้ repo ที่ยังไม่ ✅ ตัวแรกตาม build order
+cross-repo spec → add a `**Repos**:` line + per-repo Implementation Status table, and Next Actions points to the first repo not yet ✅ in build order
 (`/build {task-id} --repo {name}`)
 
 ```
@@ -120,29 +122,29 @@ cross-repo spec → เพิ่มบรรทัด `**Repos**:` + ตาร�
 
 ---
 
-### Files (จาก Implementation Status)
+### Files (from Implementation Status)
 - {list}
 
 ### Business Rules
-{top 3-5 — ที่เหลือบอก "ดูใน spec file"}
+{top 3-5 — for the rest say "see spec file"}
 
 ### Recent Activity
-**Changelog**: {entries ล่าสุด 3-5 อัน}
+**Changelog**: {latest 3-5 entries}
 **Git**: `git log -5 --format='- %h %s (%cr by %an)' -- <files>`
 
 ### Known Gotchas
-{แสดงทั้งหมด — สำคัญ}
+{show all — important}
 
 ### Pending Questions
-{Ambiguity ที่ยังไม่ resolve — ถ้า resolve หมดแล้ว skip section นี้}
+{unresolved Ambiguities — if all resolved, skip this section}
 
 ### Next Actions
 - 📋 Planned → `/build {task-id}`
 - 🚧 In Progress → `/build --resume`
-- ⚠️ Untested → เขียน test เพิ่ม แล้ว `/build --resume`
-- ✅ Done → ถ้าต้องแก้ → `/change {task-id} "..."`
-- 🔴 Blocked → แก้ blocker ก่อน
-- ❌ / 📦 → ปิดแล้ว ถ้าจะรื้อ → reopen (rename CLOSED-)
+- ⚠️ Untested → add tests, then `/build --resume`
+- ✅ Done → if changes needed → `/change {task-id} "..."`
+- 🔴 Blocked → resolve the blocker first
+- ❌ / 📦 → closed; to revive → reopen (rename CLOSED-)
 ```
 
 ### 🔹 Module Filter
@@ -158,7 +160,7 @@ cross-repo spec → เพิ่มบรรทัด `**Repos**:` + ตาร�
 
 ### 🔹 Keyword Search
 
-grep ผ่าน `features.md` (ชื่อ feature) + `specs/*.md` (Business Rules / Changelog / Gotchas)
+grep through `features.md` (feature names) + `specs/*.md` (Business Rules / Changelog / Gotchas)
 
 ```
 ## Search: "{keyword}"
@@ -172,75 +174,75 @@ grep ผ่าน `features.md` (ชื่อ feature) + `specs/*.md` (Business 
 - {task-id} ({module}): {name} {status-icon}
   > "{matching context}..."
 
-{ถ้าไม่เจอ → suggestions: /status, /status mine, ลอง keyword สั้นลง}
+{if nothing found → suggestions: /status, /status mine, try a shorter keyword}
 ```
 
 ---
 
-## Step 3: Enrich with Git (เฉพาะ Detail + Mine)
+## Step 3: Enrich with Git (Detail + Mine only)
 
-Overview / keyword mode → **skip git** เพื่อความเร็ว
+Overview / keyword mode → **skip git** for speed
 
 ---
 
 ## Rules
 
 ### Must Do
-- **Read-only strict** — ห้าม write/edit (git query อ่านอย่างเดียวได้)
-- **Concise** — fit หน้าจอเดียว
+- **Read-only strict** — no write/edit (read-only git queries are fine)
+- **Concise** — fit on one screen
 - **Sort by urgency** — 🔴 > 🚧 > 📋 > ⚠️ > ✅
-- **Actionable next step** ใน Detail mode
-- **เร็ว** — overview ไม่ต้องรัน git
+- **Actionable next step** in Detail mode
+- **Fast** — overview doesn't run git
 
 ### Must Not
-- ❌ **แก้ไฟล์ใดๆ** — เจอ drift → แนะนำ `/reindex` (index drift) หรือ `/sync` (code drift)
-- ❌ **Output ยาวจนต้อง scroll**
-- ❌ **แสดง ✅ ทั้งหมดใน overview**
-- ❌ **อ่าน spec file ใน overview / mine / module mode** (ใช้ features.md พอ)
+- ❌ **Modify any file** — drift found → suggest `/reindex` (index drift) or `/sync` (code drift)
+- ❌ **Output so long it needs scrolling**
+- ❌ **Show all ✅ in overview**
+- ❌ **Read spec files in overview / mine / module mode** (features.md is enough)
 
 ---
 
 ## Edge Cases
 
-**ยังไม่มี features**
+**No features yet**
 ```
 ## Project Status
-ยังไม่มี features ในโปรเจคนี้ — เริ่มด้วย `/spec <requirement>`
+No features in this project yet — start with `/spec <requirement>`
 ```
 
 **features.md stale**
 ```
-⚠️ features.md อาจไม่ตรง — Last reindex: {date} ({N} วันที่แล้ว)
-แนะนำ: /reindex
+⚠️ features.md may be out of date — Last reindex: {date} ({N} days ago)
+Suggested: /reindex
 ```
 
-**Task ID ผิด format**
+**Invalid task ID format**
 ```
-❌ "{input}" ไม่ใช่ task-id ที่ valid
-Format: TASK-YYYYMMDD-HHMM หรือ {MODULE}-{NNN}
-ค้นหาแทน: /status {keyword}
+❌ "{input}" is not a valid task-id
+Format: TASK-YYYYMMDD-HHMM or {MODULE}-{NNN}
+Search instead: /status {keyword}
 ```
 
-**Git user ไม่ตั้งค่า (mine mode)**
+**Git user not configured (mine mode)**
 ```
-⚠️ Git user ยังไม่ตั้งค่า
+⚠️ Git user not configured
   git config --global user.name "Your Name"
-ระหว่างนี้แสดง overview แทน
+Showing overview instead for now
 ```
 
 ---
 
 ## Output Language
 
-ตอบเป็น**ภาษาไทย** / technical terms, task-id, path, git output → **อังกฤษ**
+Reply in **Thai** / technical terms, task-id, path, git output → **English**
 
 ---
 
 ## Examples
 
 ```
-dev: /status          → ภาพรวม active tasks
-dev: /status mine     → งานของตัวเอง + git activity
+dev: /status          → overview of active tasks
+dev: /status mine     → your own tasks + git activity
 dev: /status TASK-20260501-1430  → detail + next action
 dev: /status payment  → keyword search
 dev: /status Auth     → module filter

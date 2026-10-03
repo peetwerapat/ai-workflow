@@ -1,38 +1,38 @@
-<!-- TEMPLATE: <project>/.ai/context/PROJECT.md — marker ของ multi-repo project (agent ไล่ขึ้นจาก repo มาเจอไฟล์นี้) -->
-<!-- เติมจากการอ่าน repo จริงด้วย /ai-init ที่ root ของ project — ไม่พบให้เขียนว่า "ไม่พบ" ห้ามเดา -->
+<!-- TEMPLATE: <project>/.ai/context/PROJECT.md — marker of a multi-repo project (agents walk up from a repo and find this file) -->
+<!-- Fill from reading the real repos via /ai-init at the project root — if not found write "not found", never guess -->
 
 # {Project Name}
 
-{1-2 บรรทัด: ระบบนี้คืออะไร ใช้กับใคร}
+{1-2 lines: what this system is and who uses it}
 
-> **Shared context** ของทุก repo ใน project นี้ — source of truth ของเรื่องที่ข้าม repo
-> เรื่องเฉพาะ repo อยู่ที่ `<repo>/.ai/context/` — ❌ ห้าม copy เนื้อหาในโฟลเดอร์นี้ไปไว้ใน repo
+> **Shared context** for every repo in this project — source of truth for cross-repo matters
+> Repo-specific matters live in `<repo>/.ai/context/` — ❌ never copy this folder's content into a repo
 
 ---
 
 ## Repositories
 
-| Repo | หน้าที่ | Stack | Context |
+| Repo | Responsibility | Stack | Context |
 |---|---|---|---|
 | `{dir}` | {} | {} | `{dir}/.ai/context/` |
 
 ## Domain
 
-{entity / คำศัพท์ที่ใช้ร่วมกันหลาย repo — อะไรเป็นเจ้าของ data ไหน}
+{entities / terms shared across repos — which repo owns which data}
 
-| Term | ความหมาย | Owner repo |
+| Term | Meaning | Owner repo |
 |---|---|---|
 | {} | {} | `{dir}` |
 
 ---
 
-## Context Map (โหลดเท่าที่จำเป็น)
+## Context Map (load only what is needed)
 
-| ไฟล์ | อ่านเมื่อ |
+| File | Read when |
 |---|---|
-| `PROJECT.md` (ไฟล์นี้) | ทุก task ใน project นี้ |
-| `ARCHITECTURE.md` | เสนอ design / task ที่แตะ boundary ระหว่าง repo |
-| `conventions.md` | เขียน code ใน repo ใดก็ได้ |
-| `integrations.md` | task ที่แตะ API / event / data ที่ repo อื่นใช้ |
-| `specs/` + `features.md` | cross-repo task (แตะ ≥ 2 repo) — spec ของ repo เดียวอยู่ใน repo นั้น |
-| `<repo>/.ai/context/*` | เฉพาะ repo ที่ task แตะจริง — ไม่ต้องโหลด repo อื่น |
+| `PROJECT.md` (this file) | every task in this project |
+| `ARCHITECTURE.md` | proposing a design / task crossing repo boundaries |
+| `conventions.md` | writing code in any repo |
+| `integrations.md` | task touching an API / event / data used by another repo |
+| `specs/` + `features.md` | cross-repo task (touches ≥ 2 repos) — single-repo specs live in that repo |
+| `<repo>/.ai/context/*` | only repos the task actually touches — do not load other repos |

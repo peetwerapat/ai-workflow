@@ -1,16 +1,18 @@
 ---
-description: Regen features.md จาก scan specs/ — auto-close terminal tasks (rename เป็น CLOSED-) ประหยัด token
+description: Regen features.md by scanning specs/ — auto-close terminal tasks (rename to CLOSED-), token-efficient
 argument-hint: [--force]
 ---
 
 # /reindex — Regenerate Feature Index
 
-สแกน `.ai/context/specs/` แล้ว regenerate `.ai/context/features.md` ใหม่ทั้งไฟล์
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
 
-- **Idempotent** — รันซ้ำได้ ผลเหมือนเดิม (ถ้า `specs/` ไม่เปลี่ยน)
-- **Stateless** — `features.md` เป็น memory ของระบบเอง ไม่มีไฟล์ state แยก
-- **Token-optimized** — skip `CLOSED-*.md` (ใช้ entry เดิมใน features.md เป็น cache)
-- **Multi-repo aware** — ดู [Cross-repo Specs](#cross-repo-specs)
+Scan `.ai/context/specs/` and regenerate the whole `.ai/context/features.md`
+
+- **Idempotent** — rerunnable, same result (if `specs/` is unchanged)
+- **Stateless** — `features.md` is the system's own memory, no separate state file
+- **Token-optimized** — skip `CLOSED-*.md` (use the existing entry in features.md as cache)
+- **Multi-repo aware** — see [Cross-repo Specs](#cross-repo-specs)
 
 ## Context Files
 
@@ -28,7 +30,7 @@ date "+%Y-%m-%d %H:%M"
 **$ARGUMENTS**
 
 - **Empty** → normal reindex (skip CLOSED files)
-- **`--force`** → deep reindex (re-read CLOSED files ด้วย — ใช้หลังเปลี่ยน schema ของ spec)
+- **`--force`** → deep reindex (re-read CLOSED files too — use after changing the spec schema)
 
 ---
 
@@ -40,38 +42,38 @@ date "+%Y-%m-%d %H:%M"
 ls -1 .ai/context/specs/
 ```
 
-แยก 2 กลุ่ม:
-- `active_files` = ขึ้นต้นด้วย `TASK-`
-- `closed_files` = ขึ้นต้นด้วย `CLOSED-TASK-`
+Split into 2 groups:
+- `active_files` = starts with `TASK-`
+- `closed_files` = starts with `CLOSED-TASK-`
 
 ### Step 2: Parse existing features.md (cache)
 
-อ่าน `features.md` ปัจจุบัน → `prev_entries[task_id] = entry_text`
+Read the current `features.md` → `prev_entries[task_id] = entry_text`
 
-ใช้สำหรับ:
-- **frozen cache** ของ CLOSED tasks (ไม่ต้องอ่านไฟล์ซ้ำ)
-- **reopen detection** (เทียบกับ active file ที่เพิ่งหาย CLOSED prefix)
+Used for:
+- **frozen cache** of CLOSED tasks (no need to re-read files)
+- **reopen detection** (compare with active files that just lost the CLOSED prefix)
 
-ไม่มี `features.md` (first run) → `prev_entries = {}`
+No `features.md` (first run) → `prev_entries = {}`
 
 ### Step 3: Process active files
 
-แต่ละไฟล์ใน `active_files`:
+For each file in `active_files`:
 
-1. อ่าน spec → extract: `Title` (H1), `Module`, `Status`, `Last Updated`, `Created`,
-   จำนวน Changelog entry ประเภท `CHANGED`/`FIXED`/`REFACTORED` ที่อยู่หลัง `BUILT` (สำหรับ ✏️ badge)
+1. Read spec → extract: `Title` (H1), `Module`, `Status`, `Last Updated`, `Created`,
+   count of Changelog entries of type `CHANGED`/`FIXED`/`REFACTORED` after `BUILT` (for the ✏️ badge)
 
-2. **Reopen detection**: `task_id` อยู่ใน `prev_entries` และ link เดิมมี `CLOSED-` prefix
-   → append Changelog entry ใน spec file:
+2. **Reopen detection**: `task_id` is in `prev_entries` and the old link has the `CLOSED-` prefix
+   → append a Changelog entry in the spec file:
    ```
    - **{today}** REOPENED — Re-edited after closure by {git user}
    ```
 
-3. **Auto-close**: ถ้า Status ∈ {`✅ Done`, `📦 Deprecated`, `❌ Cancelled`}
-   → `git mv TASK-{id}.md CLOSED-TASK-{id}.md` (fallback `mv` ถ้าไม่ใช่ git repo)
-   → entry link ชี้ไป `specs/CLOSED-TASK-{id}.md` + แสดง 🔒
+3. **Auto-close**: if Status ∈ {`✅ Done`, `📦 Deprecated`, `❌ Cancelled`}
+   → `git mv TASK-{id}.md CLOSED-TASK-{id}.md` (fallback `mv` if not a git repo)
+   → entry link points to `specs/CLOSED-TASK-{id}.md` + show 🔒
 
-4. Render entry 1 บรรทัด:
+4. Render a 1-line entry:
 
    **Active**:
    ```markdown
@@ -81,23 +83,23 @@ ls -1 .ai/context/specs/
    ```markdown
    - {icon} 🔒 [TASK-{id}](specs/CLOSED-TASK-{id}.md) — {Title} ({Developer}) — closed {date}
    ```
-   มี Changelog หลัง `BUILT` → แทรก `✏️({N})` ระหว่าง icon กับ link
+   Has Changelog after `BUILT` → insert `✏️({N})` between icon and link
 
 ### Step 4: Process closed files
 
-1. `task_id` อยู่ใน entries จาก Step 3 แล้ว → **skip** (active ชนะ)
-2. ไม่มี `--force` → ใช้ `prev_entries[task_id]`; ไม่มีใน cache → อ่านไฟล์ครั้งเดียวเพื่อสร้าง entry
-3. มี `--force` → อ่านไฟล์ใหม่ทุกอัน (override cache)
+1. `task_id` already in entries from Step 3 → **skip** (active wins)
+2. No `--force` → use `prev_entries[task_id]`; not in cache → read the file once to build the entry
+3. With `--force` → re-read every file (override cache)
 
 ### Step 5: Group by Module + Status
 
 - active statuses (📋 / 🚧 / ⚠️ / ✅ / 🔴) → `# {Module}` section
 - terminal-archive (❌ / 📦) → `# Archived` section
-- เรียงในแต่ละ section: 🔴 > 🚧 > 📋 > ⚠️ > ✅
+- Order within each section: 🔴 > 🚧 > 📋 > ⚠️ > ✅
 
 ### Step 6: Compute At a Glance
 
-total + count ต่อ status + ตารางต่อ module
+total + count per status + table per module
 
 ### Step 7: Write features.md
 
@@ -106,7 +108,7 @@ total + count ต่อ status + ตารางต่อ module
 
 > Derived view — regenerated by `/reindex`
 > Source of truth: `.ai/context/specs/TASK-*.md`
-> ห้ามแก้มือ — `/reindex` overwrite ทั้งไฟล์
+> Do not edit by hand — `/reindex` overwrites the whole file
 
 ---
 
@@ -121,8 +123,8 @@ total + count ต่อ status + ตารางต่อ module
 | 🔴 | Blocked |
 | ❌ | Cancelled |
 | 📦 | Deprecated |
-| 🔒 | Closed (spec file renamed เป็น CLOSED-) |
-| ✏️(N) | มี N change หลัง build |
+| 🔒 | Closed (spec file renamed to CLOSED-) |
+| ✏️(N) | N changes after build |
 
 ---
 
@@ -161,7 +163,7 @@ total + count ต่อ status + ตารางต่อ module
 📊 Scanned:
    - Active files:  {N}
    - Closed files:  {N} (cached, skipped)
-   {ถ้า --force}: Closed re-read: {N}
+   {if --force}: Closed re-read: {N}
 
 🔄 Status changes (renamed to CLOSED):
    - TASK-{id}: {Title} → CLOSED-TASK-{id}.md (status: ✅)
@@ -177,60 +179,60 @@ total + count ต่อ status + ตารางต่อ module
 
 ## Cross-repo Specs
 
-ใช้เมื่ออยู่ใน multi-repo project (มี `<project>/.ai/context/PROJECT.md`) — repo เดี่ยวข้าม section นี้
+Applies inside a multi-repo project (has `<project>/.ai/context/PROJECT.md`) — single repos skip this section
 
-**รันใน repo**: หลัง Step 3-4 ของ repo ตัวเอง → list `<project>/.ai/context/specs/TASK-*.md`
-อ่านเฉพาะ header (`**Repos**:`, `**Status**:`) + แถวของ repo นี้ใน Implementation Status → เอาเฉพาะ spec ที่ `**Repos**:` มี repo นี้
-render ใน section `# Cross-repo` ของ `features.md` ของ repo:
+**Run in a repo**: after Step 3-4 for the repo itself → list `<project>/.ai/context/specs/TASK-*.md`
+Read only the header (`**Repos**:`, `**Status**:`) + this repo's row in Implementation Status → keep only specs whose `**Repos**:` includes this repo
+Render in the `# Cross-repo` section of the repo's `features.md`:
 ```markdown
-- {icon ของ repo นี้} [TASK-{id}](../.ai/context/specs/TASK-{id}.md) — {Title} — overall {overall icon} · repos: {list}
+- {icon for this repo} [TASK-{id}](../.ai/context/specs/TASK-{id}.md) — {Title} — overall {overall icon} · repos: {list}
 ```
-- `CLOSED-TASK-*` ของ project → ใช้ cache จาก features.md เดิม (กติกาเดียวกับ Step 4) / ❌ ไม่ rename ไฟล์ของ project จาก repo
-- นับเข้า At a Glance ของ repo ด้วยสถานะ **ของ repo นี้** (ไม่ใช่ overall)
+- Project `CLOSED-TASK-*` → use cache from the existing features.md (same rule as Step 4) / ❌ do not rename project files from a repo
+- Count into the repo's At a Glance using **this repo's** status (not overall)
 
-**รันที่ root ของ project**: Algorithm เดียวกับ repo (Step 1-8) กับ `<project>/.ai/context/specs/` + `features.md` ของ project
-- ก่อน render → คำนวณ Overall Status จาก Implementation Status ใหม่ (AI.md › Cross-repo Task) — ไม่ตรงกับ `**Status**:` → แก้ `**Status**:` + บอกใน summary
-- auto-close ใช้ Overall Status — rename ด้วย `git mv` ถ้า root เป็น git repo, ไม่ใช่ → `mv`
-- entry แสดง status ต่อ repo: `- {overall} [TASK-{id}](specs/TASK-{id}.md) — {Title} — api ✅ · web 🚧 · worker 📋`
+**Run at the project root**: same Algorithm as a repo (Step 1-8) on `<project>/.ai/context/specs/` + the project's `features.md`
+- Before rendering → recompute Overall Status from Implementation Status (AI.md › Cross-repo Task) — mismatch with `**Status**:` → fix `**Status**:` + mention it in the summary
+- auto-close uses Overall Status — rename with `git mv` if root is a git repo, otherwise → `mv`
+- Entry shows per-repo status: `- {overall} [TASK-{id}](specs/TASK-{id}.md) — {Title} — api ✅ · web 🚧 · worker 📋`
 
 ---
 
 ## Rules
 
 ### Must Do
-- **Idempotent** — รัน 2 ครั้งติดผลเหมือนเดิม
-- **ใช้ cache สำหรับ CLOSED** — ไม่อ่านไฟล์ซ้ำในโหมดปกติ
-- **Auto-close terminal status** ทันทีที่เจอ
-- **Auto-log REOPENED** เมื่อ detect reopen
-- **ใส่ `Last reindex`** — บอกเวลา + ผู้รัน
-- **แยก ❌/📦 ไป `# Archived`** ไม่ปนกับ active modules
+- **Idempotent** — 2 consecutive runs give the same result
+- **Use cache for CLOSED** — do not re-read files in normal mode
+- **Auto-close terminal status** as soon as found
+- **Auto-log REOPENED** when a reopen is detected
+- **Include `Last reindex`** — time + who ran it
+- **Put ❌/📦 in `# Archived`** — don't mix with active modules
 
 ### Must Not
-- ❌ **อ่าน CLOSED files** ในโหมดปกติ
-- ❌ **แก้เนื้อ spec file** ยกเว้น: append `REOPENED` entry, rename ไฟล์, sync `**Status**:` ของ cross-repo spec ให้ตรง Overall (เฉพาะรันที่ root ของ project)
-- ❌ **เขียน features.md ก่อน scan เสร็จ** — สร้าง content เต็มใน memory ก่อน write
-- ❌ **ลบไฟล์ใดๆ**
+- ❌ **Read CLOSED files** in normal mode
+- ❌ **Edit spec file content** except: append `REOPENED` entry, rename files, sync a cross-repo spec's `**Status**:` to match Overall (only when run at the project root)
+- ❌ **Write features.md before the scan finishes** — build full content in memory before writing
+- ❌ **Delete any file**
 
 ---
 
 ## Edge Cases
 
-| กรณี | การจัดการ |
+| Case | Handling |
 |---|---|
-| `features.md` ยังไม่มี (first run) | อ่านทุก spec รวม CLOSED เพื่อสร้าง entry ครั้งแรก |
-| `features.md` parse ไม่ได้ | warn + fallback เป็น `--force` mode |
-| มีทั้ง `TASK-{id}.md` และ `CLOSED-TASK-{id}.md` | warn duplicate, ใช้ active เป็นหลัก, ไม่ลบ CLOSED |
-| spec ไม่มี `Module` | warn + ใส่ section `# Unknown` |
-| spec ไม่มี `Status` | warn + ถือเป็น 📋 Planned |
-| active file แต่ status terminal | append REOPENED + auto re-close + แนะนำให้เปลี่ยน status เป็น 🚧 ถ้ายังจะแก้ต่อ |
-| `specs/` ว่างเปล่า | render เฉพาะ Legend + At a Glance ว่าง (ไม่ error) |
-| ไม่ใช่ git repo | ใช้ `mv` แทน `git mv` |
+| `features.md` doesn't exist (first run) | Read every spec incl. CLOSED to build entries the first time |
+| `features.md` can't be parsed | warn + fallback to `--force` mode |
+| Both `TASK-{id}.md` and `CLOSED-TASK-{id}.md` exist | warn duplicate, use active as primary, don't delete CLOSED |
+| spec has no `Module` | warn + put in `# Unknown` section |
+| spec has no `Status` | warn + treat as 📋 Planned |
+| active file but terminal status | append REOPENED + auto re-close + suggest changing status to 🚧 if still editing |
+| `specs/` empty | render only Legend + empty At a Glance (no error) |
+| not a git repo | use `mv` instead of `git mv` |
 
 ---
 
 ## Output Language
 
-ตอบเป็น**ภาษาไทย** / technical terms, task-id, path → **อังกฤษ**
+Reply in **Thai** / technical terms, task-id, path → **English**
 
 ---
 
@@ -243,7 +245,7 @@ AI: ✅ Reindex Complete
     🔄 Status changes: None
     📝 features.md regenerated — Total: 50
 
-dev: /reindex   (หลัง /build เสร็จ)
+dev: /reindex   (after /build finishes)
 AI: 🔄 Status changes (renamed to CLOSED):
        - TASK-20260512-1430: Center CRUD → CLOSED-TASK-20260512-1430.md (✅)
 

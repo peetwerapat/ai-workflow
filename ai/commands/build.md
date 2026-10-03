@@ -1,77 +1,79 @@
 ---
-description: Implement feature ตาม spec พร้อมเขียน test — รองรับ incremental mode และ resume
+description: Implement a feature per its spec with tests — supports incremental mode and resume
 argument-hint: [task-id] [--repo <name>] [--incremental | --no-test | --resume]
 ---
 
 # /build — Implement Feature
 
-Implement ตาม spec file และเขียน test คู่กันไป
-Default: code + test + รัน test รวดเดียวจบ
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
+
+Implement per the spec file and write tests alongside
+Default: code + test + run tests in one go
 
 ## Context Files
 
-อ่านก่อนเริ่มเสมอ:
-- shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
-- project memory file ที่ root + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
+Always read before starting:
+- shared project context (if any — see `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + files in the context map relevant to the task
+- project memory file at root + `.ai/context/MEMORY.md` (if any — the team's file wins on conflict)
 - `.ai/context/ARCHITECTURE.md`
-- `.ai/context/specs/{task-id}.md` — **source of truth ของ build นี้**
-- module rule file ของ module ที่จะแก้ (ถ้ามี)
+- `.ai/context/specs/{task-id}.md` — **source of truth for this build**
+- module rule file of the module to be changed (if any)
 
-`features.md` อ่านเป็น overview เท่านั้น — รายละเอียดอยู่ใน spec file
+`features.md` is read as overview only — details live in the spec file
 
 ## Input
 
 **$ARGUMENTS**
 
-- **task-id** (optional): `TASK-YYYYMMDD-HHMM` หรือ legacy `{MODULE}-{NNN}`
-  - ไม่ระบุ → ใช้ feature ที่ status 📋 หรือ 🚧 ล่าสุด
+- **task-id** (optional): `TASK-YYYYMMDD-HHMM` or legacy `{MODULE}-{NNN}`
+  - not given → use the latest feature with status 📋 or 🚧
 - **Flags**:
-  - `--incremental` — หยุดให้ dev review ทุก layer
-  - `--no-test` — skip test (prototype เท่านั้น)
-  - `--resume` — ทำต่อจาก state เดิม
-  - `--repo <name>` — cross-repo spec: build เฉพาะ repo นี้ (default: ทุก repo ที่ยังไม่ ✅ ตาม build order)
+  - `--incremental` — stop for dev review after every layer
+  - `--no-test` — skip tests (prototype only)
+  - `--resume` — continue from existing state
+  - `--repo <name>` — cross-repo spec: build only this repo (default: every repo not yet ✅, in build order)
 
 ---
 
 ## Step 1: Pre-flight Check
 
-**1.1 หา spec file**
+**1.1 Find spec file**
 
-- มี task-id → อ่าน `.ai/context/specs/{task-id}.md` (หรือ `CLOSED-TASK-{id}.md`)
-  ไม่เจอ + อยู่ใน multi-repo project → หาต่อที่ `<project>/.ai/context/specs/` (ดู AI.md › Cross-repo Task)
-- ไม่มี task-id → scan `specs/TASK-*.md` หาไฟล์ที่ `**Status**:` = 📋 หรือ 🚧 (ล่าสุดก่อน)
-  (รวม cross-repo spec ที่ `**Repos**:` มี repo ปัจจุบัน)
-- **หาไม่เจอ**:
+- task-id given → read `.ai/context/specs/{task-id}.md` (or `CLOSED-TASK-{id}.md`)
+  not found + inside a multi-repo project → continue searching `<project>/.ai/context/specs/` (see AI.md › Cross-repo Task)
+- no task-id → scan `specs/TASK-*.md` for files whose `**Status**:` = 📋 or 🚧 (latest first)
+  (including cross-repo specs whose `**Repos**:` contains the current repo)
+- **Not found**:
   ```
-  ❌ ไม่พบ spec file
+  ❌ Spec file not found
 
-  Feature นี้ยังไม่ผ่าน /spec — กรุณารัน:
+  This feature has not gone through /spec — please run:
     /spec <requirement>
   ```
-  → **หยุดทันที**
+  → **stop immediately**
 
 **1.2 Check status**
 
 | Status | Action |
 |---|---|
 | 📋 Planned | ✅ proceed |
-| 🚧 In Progress (ไม่มี `--resume`) | ถาม: เริ่มใหม่ หรือ resume? |
-| ✅ Done (ไม่มี `--resume`) | warn + ถาม: จะ re-build จริงไหม (ต้อง reopen ก่อน) |
-| ⚠️ Done (untested) | proceed — focus ที่การเขียน test |
-| 🔴 Blocked | ถาม blocker ก่อน |
-| ❌ / 📦 | หยุด — feature ถูกปิดแล้ว ต้อง reopen ก่อน |
+| 🚧 In Progress (no `--resume`) | ask: start over or resume? |
+| ✅ Done (no `--resume`) | warn + ask: really re-build? (must reopen first) |
+| ⚠️ Done (untested) | proceed — focus on writing tests |
+| 🔴 Blocked | ask about the blocker first |
+| ❌ / 📦 | stop — feature is closed, must reopen first |
 
-**1.3 Load module context** — จาก spec หา module → อ่าน rule file ของ module นั้นถ้ามี
+**1.3 Load module context** — find the module from the spec → read that module's rule file if any
 
-**1.4 Scan existing code** — สำรวจพื้นที่ที่ spec จะไปแตะ:
-- โครงสร้างไฟล์ที่มีอยู่
-- pattern ที่ใช้ (follow ให้เหมือน)
-- conflict กับ code ที่จะเขียน
+**1.4 Scan existing code** — survey the area the spec will touch:
+- existing file structure
+- patterns in use (follow them)
+- conflicts with the code to be written
 
-**1.4b Cross-repo spec** (`**Scope**: cross-repo`) → ทำตาม [Cross-repo Build](#cross-repo-build) แทน Step 2-6 ต่อ repo
+**1.4b Cross-repo spec** (`**Scope**: cross-repo`) → follow [Cross-repo Build](#cross-repo-build) instead of Steps 2-6 per repo
 
-**1.5 Detect project commands** — อ่าน manifest/script ของ project หา test / lint / typecheck / migration command จริง
-**ห้าม hardcode `npm test`** ถ้า project ใช้อย่างอื่น
+**1.5 Detect project commands** — read the project's manifest/scripts to find the real test / lint / typecheck / migration commands
+**Never hardcode `npm test`** if the project uses something else
 
 ---
 
@@ -91,31 +93,31 @@ Default: code + test + รัน test รวดเดียวจบ
 
 ### Test coverage plan
 - Unit: {count} tests
-- Integration: {count} (ถ้า critical flow)
+- Integration: {count} (if critical flow)
 - Focus: happy path, rule violations, tenant isolation
 
 ### Dependencies
-- Existing: {ที่จะ import มาใช้}
-- New: {package} — ⚠️ ต้อง confirm ก่อนติดตั้ง
+- Existing: {what will be imported}
+- New: {package} — ⚠️ must confirm before installing
 
 ### Approach
-{1-2 ประโยคสรุป strategy}
+{1-2 sentence strategy summary}
 ```
 
-**`--incremental`** → รอ confirm ก่อน proceed
-**ไม่ใช่** → proceed ทันที
+**`--incremental`** → wait for confirm before proceeding
+**Otherwise** → proceed immediately
 
 ---
 
 ## Step 3: Update Status to In Progress
 
-แก้ spec file:
+Edit the spec file:
 - `**Status**:` → `🚧 In Progress`
 - `**Last Updated**:` → `{now}` by `{git user}`
 
-(`--resume` → status เป็น 🚧 อยู่แล้ว แค่ update Last Updated)
+(`--resume` → status is already 🚧, only update Last Updated)
 
-> ไม่แตะ `features.md` — `/reindex` จัดการเอง
+> Do not touch `features.md` — `/reindex` handles it
 
 ---
 
@@ -123,13 +125,13 @@ Default: code + test + รัน test รวดเดียวจบ
 
 ### Default Mode
 
-Implement ตาม dependency order (ปรับตามสถาปัตยกรรมจริงของ project):
+Implement in dependency order (adapt to the project's actual architecture):
 
 1. **Data model / Entity / Schema**
-2. **Migration** (ถ้ามี schema change)
-   - ❌ **ห้ามสร้างไฟล์ migration เอง / ตั้ง timestamp เอง** — generate ผ่าน CLI ของ project เสมอ
-   - แล้วค่อยเขียนเนื้อ `up()` / `down()` ลงในไฟล์ที่ CLI gen ออกมา
-   - หลาย migration ใน task เดียว → generate ทีละไฟล์ตามลำดับที่ต้อง run จริง
+2. **Migration** (if schema changes)
+   - ❌ **Never create migration files / set timestamps yourself** — always generate via the project's CLI
+   - then write the `up()` / `down()` body into the CLI-generated file
+   - multiple migrations in one task → generate one file at a time, in the order they must actually run
 3. **Data access layer** (repository / DAO / query module)
 4. **Business logic layer** (service / usecase / handler)
 5. **Input/Output contract** (DTO / schema / validator)
@@ -138,7 +140,7 @@ Implement ตาม dependency order (ปรับตามสถาปัตย
 
 ### Incremental Mode (`--incremental`)
 
-หลังแต่ละ layer → **หยุด**:
+After each layer → **stop**:
 ```
 ✅ Completed: {layer}
 Files:
@@ -147,131 +149,131 @@ Files:
 Preview:
 {key signatures}
 
-review ก่อนไหม? (ตอบอะไรก็ได้เพื่อ proceed)
+Review first? (reply anything to proceed)
 ```
 
 ### Resume Mode (`--resume`)
 
-1. อ่าน code ที่มีอยู่ในพื้นที่ของ feature
-2. Diff กับ spec → หา gap
-3. Implement เฉพาะ gap (ไม่เขียนทับของเดิม)
-4. เจอ code ที่ขัดกับ spec → flag ให้ dev confirm ก่อนแก้
+1. Read existing code in the feature's area
+2. Diff against the spec → find gaps
+3. Implement only the gaps (do not overwrite existing code)
+4. Code that conflicts with the spec → flag for dev confirm before changing
 
 ### Implementation Rules
 
-- ✅ Follow convention ใน `ARCHITECTURE.md` + module rule
-- ✅ ใช้ pattern เดียวกับ code ที่มีอยู่
-- ✅ แยก layer ตามที่ project กำหนด — ห้าม bypass (เช่น query DB ตรงจาก transport layer)
-- ✅ Error handling ตามที่ project ใช้อยู่ — ห้าม throw error ดิบถ้า project มี custom exception
-- ✅ Multi-tenant → filter tenant key ทุก query จาก authenticated context
-- ❌ ห้าม hardcode secret — อ่านจาก config/env
-- ❌ ห้าม `setTimeout` / `setInterval` สำหรับ background work — ใช้ queue/scheduler ของ project
+- ✅ Follow conventions in `ARCHITECTURE.md` + module rule
+- ✅ Use the same patterns as existing code
+- ✅ Separate layers as the project defines — never bypass (e.g. querying the DB directly from the transport layer)
+- ✅ Error handling as the project already does — never throw raw errors if the project has custom exceptions
+- ✅ Multi-tenant → filter by tenant key on every query, from the authenticated context
+- ❌ Never hardcode secrets — read from config/env
+- ❌ Never use `setTimeout` / `setInterval` for background work — use the project's queue/scheduler
 
 ---
 
-## Step 5: Test (ถ้าไม่มี `--no-test`)
+## Step 5: Test (unless `--no-test`)
 
 ### 5.1 Generate Tests
 
-ครอบคลุม 4 ประเภทต่อทุก business method:
-1. **Happy path** — input ถูก, output ตรง
-2. **Business rule violation** — throw/return error ที่ควร
+Cover 4 categories for every business method:
+1. **Happy path** — valid input, correct output
+2. **Business rule violation** — throws/returns the expected error
 3. **Edge cases** — null, empty, boundary
-4. **Tenant isolation** (ถ้า multi-tenant) — query ไม่ leak ข้าม tenant
+4. **Tenant isolation** (if multi-tenant) — queries don't leak across tenants
 
 ### 5.2 Run Tests
 
-ใช้ command จริงของ project (จาก Step 1.5) — scope ให้แคบที่สุดที่ครอบคลุม เช่น filter ตาม module/path
+Use the project's real command (from Step 1.5) — scope as narrowly as still covers the change, e.g. filter by module/path
 
 ### 5.3 Handle Failures
 
-- **Attempt 1**: วิเคราะห์ error → แก้ code หรือ test → รันใหม่
-- **Attempt 2**: วิเคราะห์ลึก (อาจเป็น assumption ผิดใน spec) → แก้ → รันใหม่
-- **Attempt 3**: **หยุด**
+- **Attempt 1**: analyze error → fix code or test → rerun
+- **Attempt 2**: analyze deeper (may be a wrong assumption in the spec) → fix → rerun
+- **Attempt 3**: **stop**
   ```
-  ⚠️ Tests ยัง fail หลังพยายาม 3 รอบ
+  ⚠️ Tests still failing after 3 attempts
 
-  Error ล่าสุด: {error}
-  การวิเคราะห์: {what I think is wrong}
+  Latest error: {error}
+  Analysis: {what I think is wrong}
 
-  Status ยังเป็น 🚧 (ไม่ mark ว่า done)
+  Status remains 🚧 (not marked done)
   ```
 
 ### 5.4 Lint / Typecheck
 
-หลัง test ผ่าน → รัน lint + typecheck ของ project ให้ผ่านด้วย ก่อนถือว่า build เสร็จ
+After tests pass → run the project's lint + typecheck and make them pass too, before the build counts as done
 
 ---
 
 ## Step 6: Update Spec File
 
 ### 6.1 Status
-- test ผ่าน → `✅ Done`
+- tests pass → `✅ Done`
 - `--no-test` → `⚠️ Done (untested)`
-- test ไม่ผ่าน → คง `🚧 In Progress`
+- tests fail → keep `🚧 In Progress`
 
 ### 6.2 Implementation Status
 
-แทน `_(TBD — pending /build)_`:
+Replace `_(TBD — pending /build)_`:
 ```markdown
 ## Implementation Status
 
 **Files**:
 - `{path}`
-- ... (ทุกไฟล์ที่ create / modify ใน build รอบนี้)
+- ... (every file created / modified in this build)
 
 **Tests**: {N passing} / {N failing}
-**Coverage**: {ถ้าวัดได้}
+**Coverage**: {if measurable}
 ```
 
 ### 6.3 Changelog
 ```markdown
 - **{YYYY-MM-DD}** BUILT — Implemented {brief summary} + {N} tests
 ```
-(`--no-test` → ระบุชัดว่า "no tests written — --no-test flag used")
+(`--no-test` → state explicitly "no tests written — --no-test flag used")
 
 ### 6.4 Last Updated
 ```markdown
 **Last Updated**: {now} by {git user.name} \<{git user.email}\>
 ```
 
-### 6.5 Known Gotchas (ถ้ามี)
-เจอ pitfall ที่ maintainer ต่อไปควรรู้ → เพิ่มใน `## Known Gotchas`
+### 6.5 Known Gotchas (if any)
+Found a pitfall the next maintainer should know → add to `## Known Gotchas`
 
 ---
 
 ## Cross-repo Build
 
-spec เดียว หลาย repo — ทำ Step 1.3-6 **ทีละ repo ตาม `**Repos**:` (build order)**
+One spec, many repos — do Steps 1.3-6 **one repo at a time, following `**Repos**:` (build order)**
 
 **Pre-flight**
-- repo ที่จะ build = ทุก repo ใน Implementation Status ที่ยังไม่ ✅ (หรือเฉพาะ `--repo <name>`)
-- เช็คว่าเขียนไฟล์ได้ทุก repo ที่จะ build — ไม่ได้ (เช่น session เปิดใน repo อื่น / sandbox) → หยุด แนะนำ:
-  `cd <project>` แล้วเปิด session ใหม่ หรือ `/build {task-id} --repo <name>` จาก session ใน repo นั้น
-- repo ใดยังไม่มี `.ai/` → warn (ไม่มี ARCHITECTURE ให้ follow) แนะนำ `/ai-init` ก่อน
+- repos to build = every repo in Implementation Status not yet ✅ (or only `--repo <name>`)
+- check that files can be written in every repo to be built — if not (e.g. session opened in another repo / sandbox) → stop, recommend:
+  `cd <project>` and open a new session, or `/build {task-id} --repo <name>` from a session in that repo
+- any repo without `.ai/` → warn (no ARCHITECTURE to follow), recommend `/ai-init` first
 
-**Plan** (Step 2) แสดงรวมทุก repo ครั้งเดียว: build order, files ต่อ repo, test command ต่อ repo, contract ที่ repo ถัดไปจะพึ่ง
+**Plan** (Step 2) shown once for all repos: build order, files per repo, test command per repo, contracts the next repo will depend on
 
-**ต่อ repo** (ตามลำดับ):
-1. อ่าน memory file + `ARCHITECTURE.md` + module rule **ของ repo นั้น** — ไม่โหลด context ของ repo ที่ยังไม่ถึงคิว
-2. Implement เฉพาะ section `### {repo}` ใน Proposed Design — path อ้างจาก root ของ project
-3. Test ด้วย command ของ repo นั้น (Step 1.5 ต่อ repo) — repo ต่างกันใช้ runner ต่างกันได้
-4. Update แถวของ repo นั้นใน Implementation Status (Status / Files / Tests) + Changelog `BUILT [{repo}]`
-5. คำนวณ **Overall Status** ใหม่ (AI.md › Cross-repo Task) แล้ว update `**Status**:` + Last Updated
-6. ส่ง contract ที่ implement จริง (path, shape) ต่อให้ repo ถัดไป
+**Per repo** (in order):
+1. Read memory file + `ARCHITECTURE.md` + module rule **of that repo** — do not load context of repos not yet reached
+2. Implement only the `### {repo}` section in Proposed Design — paths relative to the project root
+3. Test with that repo's command (Step 1.5 per repo) — different repos may use different runners
+4. Update that repo's row in Implementation Status (Status / Files / Tests) + Changelog `BUILT [{repo}]`
+5. Recompute **Overall Status** (AI.md › Cross-repo Task), then update `**Status**:` + Last Updated
+6. Pass the actually implemented contract (path, shape) on to the next repo
 
-**ประหยัด context**: runtime รองรับ subagent → delegate step 1-4 ของแต่ละ repo ให้ subagent ทีละตัว (ตามลำดับ ห้ามขนาน — repo หลังพึ่ง contract ของ repo ก่อน)
-ส่ง input: spec path + ชื่อ repo + contract summary จาก repo ก่อนหน้า / รับกลับ: files, tests, contract จริง, gotchas
+**Save context**: runtime supports subagents → delegate steps 1-4 of each repo to a subagent, one at a time (in order, never parallel — later repos depend on earlier repos' contracts)
+send input: spec path + repo name + contract summary from the previous repo / receive back: files, tests, actual contract, gotchas
 
-**Failure**: test ของ repo ใด fail ครบ 3 รอบ → หยุดที่ repo นั้น (แถวเป็น 🚧) **ไม่ build repo ถัดไป**
-ที่ depend กับมัน — repo ที่ไม่ depend (ไม่มีใน Contract Changes ร่วมกัน) ถาม dev ว่าจะทำต่อไหม
+**Failure**: a repo's tests fail all 3 attempts → stop at that repo (row stays 🚧), **do not build the next repos**
+that depend on it — for repos that don't depend on it (no shared Contract Changes), ask the dev whether to continue
 
-**Contract drift**: implement จริงต่างจาก Contract Changes ใน spec → หยุด ให้ dev เลือก: แก้ code ให้ตรง spec หรือ `/change`
+**Contract drift**: actual implementation differs from the spec's Contract Changes → stop, let the dev choose: fix code to match the spec, or `/change`
 
-**Final Report** (Step 7) เพิ่ม:
-- ตาราง Implementation Status ต่อ repo + Overall Status
-- diff ที่เสนอสำหรับ `<project>/.ai/context/integrations.md` (ถ้า contract เปลี่ยน — รอ dev confirm ก่อนเขียน)
-- suggested commit **แยกต่อ repo**:
+**Final Report** (Step 7) adds:
+- Implementation Status table per repo + Overall Status
+- proposed diff for `<project>/.ai/context/integrations.md` (if the contract changed — wait for dev confirm before writing)
+- suggested commit **separately per repo**:
   ```
   cd {repo} && git commit -m "feat({scope}): {description}
 
@@ -286,7 +288,7 @@ spec เดียว หลาย repo — ทำ Step 1.3-6 **ทีละ repo
 ## ✅ Build Complete: {Task ID}
 
 ### Summary
-{1-2 ประโยค}
+{1-2 sentences}
 
 ### Files Changed
 Created:
@@ -297,37 +299,37 @@ Modified:
 ### Tests
 - Unit: X added ({all passing | Y passing, Z failing})
 - Lint / Typecheck: ✅ | ⚠️
-{หรือ "⚠️ Tests skipped — ใช้ --no-test"}
+{or "⚠️ Tests skipped — --no-test used"}
 
 ### ⚠️ Assumptions
-{ทุก assumption ที่ใช้เมื่อ spec ไม่ชัด}
+{every assumption made where the spec was unclear}
 1. ...
 
-### 🔍 จุดที่ควร Review
-{จุดที่ต้องการ human judgment}
+### 🔍 Points to Review
+{points that need human judgment}
 1. ...
 
-### ⚠️ Anti-patterns Detected (ถ้ามี)
-{pattern ที่ขัดกับ ARCHITECTURE.md แต่ implement ไปเพราะ spec บังคับ}
+### ⚠️ Anti-patterns Detected (if any)
+{patterns that conflict with ARCHITECTURE.md but were implemented because the spec required them}
 
-### 📘 API / Interface ที่เพิ่มหรือแก้
-สำหรับทุก endpoint/public interface ที่ build รอบนี้ — ให้ consumer ใช้ได้ทันทีโดยไม่ต้องอ่าน code:
+### 📘 API / Interface added or changed
+For every endpoint/public interface built this round — so consumers can use it immediately without reading code:
 
 **`{METHOD} {path}`** — {short purpose}
 - **Auth**: {scheme}
-- **Path params** / **Query params**: ตาราง `name | type | default | desc`
-- **Request body**: shape + field สำคัญ + validation
-- **Response 2xx**: ตัวอย่าง JSON + key fields (เน้นชื่อ field จริง เช่น `pageSize` ไม่ใช่ `limit`)
-- **Error cases**: ตาราง `status | error key | when`
-- **Edge cases / behaviors สำคัญ**
-- **ตัวอย่างการเรียก**: 1-3 ตัวอย่าง (default / with filter / edge)
+- **Path params** / **Query params**: table `name | type | default | desc`
+- **Request body**: shape + key fields + validation
+- **Response 2xx**: example JSON + key fields (use real field names, e.g. `pageSize` not `limit`)
+- **Error cases**: table `status | error key | when`
+- **Important edge cases / behaviors**
+- **Example calls**: 1-3 examples (default / with filter / edge)
 
-> ไม่มี public interface ใหม่ (แก้แต่ internal) → ข้าม section นี้
+> No new public interface (internal changes only) → skip this section
 
 ### Next Steps
 1. Review code + tests
-2. `git diff` ดูการเปลี่ยนแปลงทั้งหมด
-3. `/reindex` เพื่อ update features.md (terminal status จะถูก auto-close)
+2. `git diff` to see all changes
+3. `/reindex` to update features.md (terminal status will be auto-closed)
 4. Commit + push
 ```
 
@@ -336,38 +338,38 @@ Modified:
 ## Rules
 
 ### Must Do
-- **อ่าน spec + ARCHITECTURE.md + module rule** ก่อนเขียน code ทุกครั้ง
-- **Follow existing pattern** — ไม่สร้าง style ใหม่
-- **เขียน test คู่กับ code** (ยกเว้น `--no-test`)
-- **รัน test + lint + typecheck ให้ผ่าน** ก่อน mark ✅
-- **Update spec file** (Status / Implementation Status / Changelog / Last Updated) ทุกครั้ง
-- **Report assumptions + review points** เสมอ
-- **อธิบาย public interface ทุกตัวที่ build** ใน Final Report
+- **Read spec + ARCHITECTURE.md + module rule** before writing code, every time
+- **Follow existing pattern** — do not create new styles
+- **Write tests alongside code** (except `--no-test`)
+- **Make tests + lint + typecheck pass** before marking ✅
+- **Update spec file** (Status / Implementation Status / Changelog / Last Updated) every time
+- **Report assumptions + review points** always
+- **Document every public interface built** in the Final Report
 
 ### Must Not
-- ❌ **Build โดยไม่มี spec file**
-- ❌ **แก้เนื้อ spec (Business Rules / Design)** — ถ้า spec ไม่ชัด → หยุด ขอให้ dev รัน `/change`
-  (แก้ Status / Implementation Status / Changelog / Last Updated / Known Gotchas ได้ — เป็น state ของ build)
-- ❌ **แตะ `features.md`**
+- ❌ **Build without a spec file**
+- ❌ **Edit spec content (Business Rules / Design)** — if the spec is unclear → stop, ask the dev to run `/change`
+  (Status / Implementation Status / Changelog / Last Updated / Known Gotchas may be edited — they are build state)
+- ❌ **Touch `features.md`**
 - ❌ **Bypass architecture rules**
-- ❌ **Mark ✅ ถ้า test ยัง fail** — ปล่อย 🚧 ดีกว่า
-- ❌ **ติดตั้ง dependency โดยไม่ confirm**
-- ❌ **Commit / push อัตโนมัติ**
-- ❌ **Cross-repo: build repo ถัดไปทั้งที่ repo ก่อนหน้า (ที่มันพึ่ง) test ยัง fail**
-- ❌ **Cross-repo: mark Overall ✅ ถ้ามี repo ใดยังไม่ ✅**
+- ❌ **Mark ✅ while tests still fail** — leaving 🚧 is better
+- ❌ **Install dependencies without confirm**
+- ❌ **Auto commit / push**
+- ❌ **Cross-repo: build the next repo while a previous repo (that it depends on) still has failing tests**
+- ❌ **Cross-repo: mark Overall ✅ if any repo is not yet ✅**
 
 ### Flag-specific Rules
 
-- **`--no-test`**: ใช้ได้เฉพาะ prototype/exploration — ถ้าเป็นงาน production → warn dev ก่อน
-- **`--incremental`**: ใช้เมื่อ feature complex หรือ dev อยาก tune ระหว่างทาง
-- **`--resume`**: ห้าม overwrite code เดิมโดยไม่ confirm
+- **`--no-test`**: only for prototype/exploration — if it is production work → warn the dev first
+- **`--incremental`**: use when the feature is complex or the dev wants to tune along the way
+- **`--resume`**: never overwrite existing code without confirm
 
 ---
 
 ## Output Language
 
-- ตอบ dev เป็น**ภาษาไทย**
-- Code / code comment / commit message → **อังกฤษ**
+- Reply to the dev in **Thai**
+- Code / code comments / commit messages → **English**
 - Commit message format: `feat({module}): {description}`
 
 ---
@@ -379,11 +381,11 @@ dev: /build TASK-20260501-1430
 AI: [pre-flight → plan → implement → test → update spec → report]
 
 dev: /build --resume
-AI: [หา feature 🚧 ล่าสุด → diff กับ spec → ทำต่อเฉพาะ gap]
+AI: [find latest 🚧 feature → diff against spec → continue only the gaps]
 
 dev: /build TASK-20260501-1430 --incremental
-AI: [implement layer → หยุด → confirm → layer ต่อไป → ...]
+AI: [implement layer → stop → confirm → next layer → ...]
 
 dev: /build --no-test
-AI: [implement อย่างเดียว → status ⚠️ → warn ว่าควร test ก่อน production]
+AI: [implement only → status ⚠️ → warn that it should be tested before production]
 ```

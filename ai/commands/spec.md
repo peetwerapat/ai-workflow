@@ -1,151 +1,153 @@
 ---
-description: แปลง requirement เป็น spec + วิเคราะห์ risk + บันทึกเป็น feature ใหม่
+description: Turn a requirement into a spec + risk analysis + record it as a new feature
 argument-hint: <requirement> [--quick]
 ---
 
 # /spec — Create Feature Specification
 
-รับ requirement ดิบจาก BA/PO หรือ dev → วิเคราะห์ business rules + risks + edge cases →
-ถาม ambiguity ที่สำคัญ → บันทึกเป็น spec file
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
+
+Take a raw requirement from BA/PO or dev → analyze business rules + risks + edge cases →
+ask the important ambiguities → save as a spec file
 
 ## Context Files
 
-อ่านก่อนเริ่มเสมอ:
-- shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
-  - แตะ contract ใน `integrations.md` → flag repo ฝั่ง consumer ใน risk + เสนออัปเดต shared (ห้ามแก้เอง)
-- project memory file ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตัวที่มี) + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
+Always read before starting:
+- shared project context (if any — see `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + files in the context map relevant to the task
+  - touches a contract in `integrations.md` → flag the consumer-side repos in risks + propose a shared update (never edit it yourself)
+- project memory file at root (whichever of `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` exists) + `.ai/context/MEMORY.md` (if any — the team's file wins on conflict)
 - `.ai/context/ARCHITECTURE.md`
-- `.ai/context/features.md` (overview เท่านั้น)
+- `.ai/context/features.md` (overview only)
 
-**ถ้าไม่มี `.ai/context/`** → แจ้ง dev ให้รัน `/ai-init` ก่อน แล้ว **หยุด**
+**If `.ai/context/` does not exist** → tell the dev to run `/ai-init` first, then **stop**
 
-**รันที่ root ของ project** (multi-repo, cwd ไม่ใช่ git repo): อ่าน shared context แทน memory file ของ repo
-แล้วอ่าน memory file + `ARCHITECTURE.md` ของ **repo ที่ requirement แตะเท่านั้น** (หลัง Step 0)
+**Running at the project root** (multi-repo, cwd is not a git repo): read the shared context instead of a repo memory file,
+then read the memory file + `ARCHITECTURE.md` of **only the repos the requirement touches** (after Step 0)
 
 ## Input
 
 **$ARGUMENTS**
 
 Parse rules:
-- **requirement text** (required): ข้อความ requirement — ประโยค, bullet, paragraph, user story ก็ได้
-- **Flags**: `--quick` — ข้าม ambiguity questions (trust dev)
+- **requirement text** (required): the requirement — sentence, bullets, paragraph, or user story
+- **Flags**: `--quick` — skip ambiguity questions (trust dev)
 
-**ถ้า argument ว่าง** → ถาม dev:
+**If the argument is empty** → ask the dev:
 ```
-กรุณาระบุ requirement ที่ต้องการ spec
-ตัวอย่าง: /spec ลูกค้าต้องการ login ด้วย email + password
+Please provide the requirement to spec
+Example: /spec ลูกค้าต้องการ login ด้วย email + password
 ```
-แล้ว **หยุด** รอ input ใหม่
+then **stop** and wait for new input
 
 ---
 
 ## Runtime Info
 
-รัน:
+Run:
 ```bash
 git config user.name
 git config user.email
 date "+%Y-%m-%d %H:%M"
 ```
 
-ใช้เป็น `**Created**:` field และ Task ID generation
+Use for the `**Created**:` field and Task ID generation
 
 ---
 
-## Step 0: Identify Scope (เฉพาะเมื่ออยู่ใน multi-repo project)
+## Step 0: Identify Scope (only inside a multi-repo project)
 
-ไม่มี shared context (repo เดี่ยว) → ข้ามไป Step 1 (behavior เดิม)
+No shared context (single repo) → skip to Step 1 (original behavior)
 
-จาก requirement + `PROJECT.md` (repo list) + `integrations.md` (contract) → หาว่าแตะ repo ไหนบ้าง:
+From the requirement + `PROJECT.md` (repo list) + `integrations.md` (contracts) → determine which repos it touches:
 
-| แตะ | Scope | spec อยู่ที่ |
+| Touches | Scope | Spec lives at |
 |---|---|---|
-| 1 repo | **repo** | `<repo>/.ai/context/specs/` (ถ้ารันที่ root ของ project → บอก dev ว่าจะเขียนลง repo ไหน) |
-| ≥ 2 repo (กี่ตัวก็ได้) | **cross-repo** | `<project>/.ai/context/specs/` |
+| 1 repo | **repo** | `<repo>/.ai/context/specs/` (if run at the project root → tell the dev which repo it will be written to) |
+| ≥ 2 repos (any number) | **cross-repo** | `<project>/.ai/context/specs/` |
 
-cross-repo → เสนอ repo list + **build order** (provider ก่อน consumer ตาม `integrations.md`) ให้ dev confirm:
+cross-repo → propose the repo list + **build order** (provider before consumer, per `integrations.md`) for the dev to confirm:
 ```
-Requirement นี้แตะ {N} repo:
-  1. api     — provider: เพิ่ม endpoint
-  2. worker  — consume event จาก api
-  3. web     — เรียก endpoint ใหม่
-A) cross-repo spec ไฟล์เดียว ตาม build order นี้ (แนะนำ)
-B) แก้ list / order: ...
+This requirement touches {N} repos:
+  1. api     — provider: add endpoint
+  2. worker  — consumes event from api
+  3. web     — calls the new endpoint
+A) single cross-repo spec file, in this build order (recommended)
+B) edit list / order: ...
 ```
-❌ ห้ามเดา repo ที่ไม่มีหลักฐานว่าเกี่ยว — ไม่แน่ใจให้ถาม
+❌ Never guess a repo with no evidence it is involved — if unsure, ask
 
 ---
 
 ## Step 1: Identify Module
 
-จาก requirement เดาว่า feature นี้อยู่ใน module/area ใด:
+From the requirement, guess which module/area this feature belongs to:
 
-1. อ่าน `features.md` → ดู module sections ที่มีอยู่ (หรือ scan `specs/` หา distinct Module fields)
-2. Match keyword ใน requirement กับชื่อ module + โครงสร้าง source dir จริง
-3. Match หลายตัว → ถาม dev ให้ชัด
-4. ไม่ match (module ใหม่) → propose module name + ถาม dev confirm
+1. Read `features.md` → see existing module sections (or scan `specs/` for distinct Module fields)
+2. Match requirement keywords against module names + the actual source dir structure
+3. Multiple matches → ask the dev to clarify
+4. No match (new module) → propose a module name + ask the dev to confirm
 
-ตัวอย่าง:
+Examples:
 - "login ด้วย email" → Auth
-- "แสดงราคาสินค้า" → Product (ถ้ามี) หรือ propose ใหม่
-- "comment ใน blog post" → มี Blog/Post → ใช้; ไม่มี → propose "Comment"
+- "แสดงราคาสินค้า" → Product (if it exists) or propose a new one
+- "comment ใน blog post" → Blog/Post exists → use it; otherwise → propose "Comment"
 
-**อ่าน module context**: ถ้า module นั้นมีไฟล์ rule ของตัวเอง (เช่น `<module>/CLAUDE.md` หรือ `<module>/AGENTS.md`) → อ่านก่อน analyze
+**Read module context**: if the module has its own rule file (e.g. `<module>/CLAUDE.md` or `<module>/AGENTS.md`) → read it before analyzing
 
 ---
 
 ## Step 2: Delegate to spec-analyzer
 
-ส่งให้ agent `spec-analyzer` วิเคราะห์
+Send to the `spec-analyzer` agent for analysis
 
 **Input:**
-- Requirement text (ดิบ ตามที่ dev พิมพ์)
+- Requirement text (raw, as the dev typed it)
 - Target module
-- Context files ที่ relevant (`ARCHITECTURE.md`, module rule file ถ้ามี)
+- Relevant context files (`ARCHITECTURE.md`, module rule file if any)
 - Mode: `normal` | `quick`
-- Scope: `repo` | `cross-repo` + Repos (build order) + path ของ shared context
+- Scope: `repo` | `cross-repo` + Repos (build order) + path of the shared context
 
 **Expect output:**
-- Business rules (เขียนเป็น "ระบบต้องทำ X เมื่อ Y")
+- Business rules (written as "the system must do X when Y")
 - Risks (security, data integrity, performance, breaking change, multi-tenant)
 - Edge cases (validation, state, query, error, empty state)
-- Dependencies (module อื่น, external lib/service)
-- Proposed design (files, API shape, data model) — cross-repo: **แยกต่อ repo** + contract changes ระหว่าง repo
-- Ambiguity questions (ไม่เกิน 3 ข้อ ที่สำคัญจริง)
+- Dependencies (other modules, external lib/service)
+- Proposed design (files, API shape, data model) — cross-repo: **split per repo** + contract changes between repos
+- Ambiguity questions (max 3, only truly important ones)
 - Confidence assessment
 
-**ถ้า runtime ไม่รองรับ subagent** → อ่าน `~/.ai/agents/spec-analyzer.md` แล้วทำตาม process นั้นเอง
-ผลลัพธ์ต้องอยู่ใน format เดียวกัน
+**If the runtime does not support subagents** → read `~/.ai/agents/spec-analyzer.md` and follow that process yourself
+Output must be in the same format
 
-> delegate = analyze ใน context แยก → ประหยัด main context
+> delegate = analyze in a separate context → saves main context
 
 ---
 
-## Step 3: Ask Ambiguity (ถ้าไม่มี --quick)
+## Step 3: Ask Ambiguity (unless --quick)
 
-แสดงคำถามจาก analyzer (สูงสุด 3 ข้อ) พร้อม options:
+Show the analyzer's questions (max 3) with options:
 
 ```
 ## Spec Draft: {Feature Name}
 
-### ✅ Business Rules ที่เข้าใจแล้ว
+### ✅ Business Rules understood
 1. ...
 
-### 🔴 Risks ที่พบ
+### 🔴 Risks found
 - {risk}: mitigation?
 
-### ❓ Questions (ตอบก่อน confirm)
-1. {คำถาม}
+### ❓ Questions (answer before confirm)
+1. {question}
    - A) ...
    - B) ...
    - C) ...
 
-กรุณาตอบทุกข้อก่อน แล้วจะ proceed ต่อ
+Please answer all questions first, then I will proceed
 ```
 
-**รอ dev ตอบ** — parse คำตอบ map เข้ากับ options ถ้าตอบไม่ชัด ถามใหม่
+**Wait for the dev's answers** — parse and map them to the options; if an answer is unclear, ask again
 
-**ถ้ามี `--quick`**: skip step นี้ ใช้ sensible default ทุกข้อ แต่ต้อง list ใน `## Assumed Defaults` ของ spec file
+**With `--quick`**: skip this step, use sensible defaults for all, but list them in `## Assumed Defaults` of the spec file
 
 ---
 
@@ -167,7 +169,7 @@ B) แก้ list / order: ...
 - 🔴 {risk}: {how to handle}
 
 ### Dependencies
-- {module / lib}  ⚠️ NEW ถ้าต้องติดตั้งเพิ่ม
+- {module / lib}  ⚠️ NEW if it must be installed
 
 ### Proposed Design
 **Files to create/modify:**
@@ -183,14 +185,14 @@ B) แก้ list / order: ...
 1. Q: {question} → A: {answer}
 
 ---
-พิมพ์ "confirm" เพื่อบันทึก spec
-หรือพิมพ์สิ่งที่อยากแก้ เช่น "เปลี่ยน rate limit เป็น 10/min"
+Type "confirm" to save the spec
+or type what you want changed, e.g. "change rate limit to 10/min"
 ```
 
-**Loop จนกว่า dev จะ confirm:**
-- dev แก้ไข → update draft → show ใหม่
+**Loop until the dev confirms:**
+- dev edits → update draft → show again
 - dev "confirm" → Step 5
-- dev "cancel" → ยกเลิก **ไม่สร้างไฟล์**
+- dev "cancel" → abort, **create no file**
 
 ---
 
@@ -200,17 +202,19 @@ B) แก้ list / order: ...
 date "+TASK-%Y%m%d-%H%M"
 ```
 
-Format: `TASK-YYYYMMDD-HHMM` เช่น `TASK-20260501-1430`
-**Generate ตอนนี้เท่านั้น** — ไม่ใช่ตอนเริ่ม command
+Format: `TASK-YYYYMMDD-HHMM` e.g. `TASK-20260501-1430`
+**Generate only now** — not when the command starts
 
-ถ้าไฟล์ชื่อนี้มีอยู่แล้ว (collision) → เติม suffix `-B`, `-C` ห้าม overwrite
-ใน multi-repo project เช็ค collision ทั้ง `<project>/.ai/context/specs/` และ `specs/` ของทุก repo (task-id ต้อง unique ทั้ง project)
+If a file with this name already exists (collision) → append suffix `-B`, `-C`; never overwrite
+In a multi-repo project check collisions in both `<project>/.ai/context/specs/` and every repo's `specs/` (task-id must be unique across the project)
 
 ---
 
 ## Step 6: Create Spec File
 
-สร้าง `.ai/context/specs/{task-id}.md`:
+Create `.ai/context/specs/{task-id}.md`:
+
+Spec file content (business rules, edge cases, risks, resolutions) is written in **Thai**; headings, technical terms, paths, code stay English.
 
 ```markdown
 # {Task ID} — {Feature Name}
@@ -224,7 +228,7 @@ Format: `TASK-YYYYMMDD-HHMM` เช่น `TASK-20260501-1430`
 
 ## Requirement (Original)
 
-{raw requirement ที่ dev พิมพ์มา — preserve ไว้ trace ย้อนกลับ}
+{raw requirement as the dev typed it — preserved for traceability}
 
 ---
 
@@ -279,7 +283,7 @@ Format: `TASK-YYYYMMDD-HHMM` เช่น `TASK-20260501-1430`
 
 ### Flow
 
-{sequence / state — ใส่เมื่อ complex เท่านั้น}
+{sequence / state — include only when complex}
 
 ---
 
@@ -293,7 +297,7 @@ Format: `TASK-YYYYMMDD-HHMM` เช่น `TASK-20260501-1430`
 
 ## Assumed Defaults (--quick mode)
 
-_ใส่เฉพาะเมื่อรันด้วย `--quick`_
+_Include only when run with `--quick`_
 
 - {assumption}
 
@@ -320,7 +324,7 @@ _(None yet — will be populated during /build)_
 
 ### Cross-repo spec
 
-สร้างที่ `<project>/.ai/context/specs/{task-id}.md` — โครงเดียวกับด้านบน ต่างกันเฉพาะ:
+Create at `<project>/.ai/context/specs/{task-id}.md` — same structure as above, differing only in:
 
 ```markdown
 # {Task ID} — {Feature Name}
@@ -328,21 +332,21 @@ _(None yet — will be populated during /build)_
 **Scope**: cross-repo
 **Repos**: {repo-1}, {repo-2}, ..., {repo-N}   ← build order
 **Module**: {feature area}
-**Status**: 📋 Planned   ← overall (คำนวณจาก Implementation Status — ดู AI.md › Cross-repo Task)
+**Status**: 📋 Planned   ← overall (computed from Implementation Status — see AI.md › Cross-repo Task)
 ...
 
-## Business Rules          ← เขียนครั้งเดียว ใช้ร่วมทุก repo
+## Business Rules          ← written once, shared by all repos
 
-## Contract Changes        ← สิ่งที่ repo หนึ่งให้อีก repo ใช้
+## Contract Changes        ← what one repo provides for another to use
 
-| Provider | Consumer(s) | ช่องทาง | Contract | Breaking? |
+| Provider | Consumer(s) | Channel | Contract | Breaking? |
 |---|---|---|---|---|
-| `{repo}` | `{repo}`, `{repo}` | {REST / event / ...} | {shape / path ของ schema} | yes / no |
+| `{repo}` | `{repo}`, `{repo}` | {REST / event / ...} | {shape / schema path} | yes / no |
 
 ## Proposed Design
 
 ### {repo-1}
-**Create:** / **Modify:** — path ขึ้นต้นด้วยชื่อ repo (`{repo-1}/src/...`)
+**Create:** / **Modify:** — paths prefixed with the repo name (`{repo-1}/src/...`)
 
 ### {repo-2}
 ...
@@ -359,7 +363,7 @@ _(None yet — will be populated during /build)_
 - **{YYYY-MM-DD}** ADDED [{repo-1}, {repo-2}, ...] — Initial spec
 ```
 
-Contract Changes ที่กระทบ `integrations.md` → แสดง diff ที่เสนอใน Final Report (dev confirm ก่อนเขียน — ดู Ownership ใน AI.md)
+Contract Changes that affect `integrations.md` → show the proposed diff in the Final Report (dev confirms before writing — see Ownership in AI.md)
 
 ---
 
@@ -373,20 +377,20 @@ Contract Changes ที่กระทบ `integrations.md` → แสดง dif
 ### File Created
 - `.ai/context/specs/{task-id}.md`
 
-### Business Rules (สรุป)
+### Business Rules (summary)
 1. ...
 
 ### 🔴 Key Risks to Watch
 - {risk}
 
 ### Next Steps
-1. Review spec file — แก้เพิ่มได้ถ้ายังไม่ชัด
-2. `/build {task-id}` เพื่อเริ่ม implement
-3. `/reindex` เมื่ออยาก update features.md
+1. Review spec file — add/edit if still unclear
+2. `/build {task-id}` to start implementing
+3. `/reindex` when you want to update features.md
 
 ### Pro tips
-- requirement เปลี่ยนก่อน build → แก้ spec file ตรงๆ ได้
-- build ไปแล้วค่อยมาแก้ → ใช้ `/change {task-id} "..."`
+- requirement changes before build → edit the spec file directly
+- changes after build → use `/change {task-id} "..."`
 ```
 
 ---
@@ -394,34 +398,34 @@ Contract Changes ที่กระทบ `integrations.md` → แสดง dif
 ## Rules
 
 ### Must Do
-- **อ่าน ARCHITECTURE.md + module rule** ก่อน analyze เพื่อไม่เสนอ pattern ที่ขัด
-- **Delegate ให้ spec-analyzer** — ไม่ analyze เองใน main context (ยกเว้น runtime ไม่รองรับ)
-- **ถามเฉพาะ ambiguity ที่สำคัญจริง** (สูงสุด 3)
-- **Preserve original requirement** ใน spec file
-- **รอ dev confirm** ก่อนเขียนไฟล์ทุกครั้ง (แม้มี `--quick`)
+- **Read ARCHITECTURE.md + module rule** before analyzing, to avoid proposing conflicting patterns
+- **Delegate to spec-analyzer** — do not analyze in the main context (unless the runtime doesn't support it)
+- **Ask only truly important ambiguities** (max 3)
+- **Preserve original requirement** in the spec file
+- **Wait for dev confirm** before writing any file, every time (even with `--quick`)
 
 ### Must Not
-- ❌ **เขียน code ใน command นี้** — นี่คือ spec phase
-- ❌ **แตะ `features.md`** — เป็นงานของ `/reindex`
-- ❌ **Generate Task ID ก่อน Step 5**
-- ❌ **ถาม ambiguity เกิน 3 ข้อ**
-- ❌ **Overwrite spec file ที่มีอยู่**
+- ❌ **Write code in this command** — this is the spec phase
+- ❌ **Touch `features.md`** — that is `/reindex`'s job
+- ❌ **Generate Task ID before Step 5**
+- ❌ **Ask more than 3 ambiguity questions**
+- ❌ **Overwrite an existing spec file**
 
 ### Edge Cases
 
-- **Requirement คลุมหลาย module**: ถามว่าควรแยกเป็น 2 spec หรือไม่
-- **Requirement คลุมหลาย repo**: cross-repo spec ไฟล์เดียว (Step 0) — ❌ ห้ามแตกเป็น spec ซ้ำในแต่ละ repo
-- **Repo ไม่มี `.ai/`**: ยังสร้าง cross-repo spec ได้ แต่แนะนำ `cd <repo> && /ai-init` ก่อน `/build`
-- **Requirement ซ้ำกับ feature เดิม**: flag + ถาม — อาจต้องใช้ `/change` ไม่ใช่ `/spec`
-- **Requirement เป็นแค่ idea**: ขอ clarify ก่อน ถ้ายัง vague เกิน → แนะนำให้ refine ก่อน
+- **Requirement spans multiple modules**: ask whether it should be split into 2 specs
+- **Requirement spans multiple repos**: single cross-repo spec file (Step 0) — ❌ never split into duplicate specs per repo
+- **Repo has no `.ai/`**: a cross-repo spec can still be created, but recommend `cd <repo> && /ai-init` before `/build`
+- **Requirement duplicates an existing feature**: flag + ask — may need `/change` instead of `/spec`
+- **Requirement is just an idea**: ask to clarify first; if still too vague → recommend refining it first
 
 ---
 
 ## Output Language
 
-- ตอบ dev เป็น**ภาษาไทย**
-- Spec file: business rules / edge cases → ไทย; technical term, path, code → อังกฤษ
-- Original requirement → preserve ภาษาที่ dev พิมพ์
+- Reply to the dev in **Thai**
+- Spec file: business rules / edge cases → Thai; technical terms, paths, code → English
+- Original requirement → preserve the language the dev typed
 
 ---
 
@@ -430,7 +434,7 @@ Contract Changes ที่กระทบ `integrations.md` → แสดง dif
 **Normal flow**
 ```
 dev: /spec ลูกค้าต้องการระบบ comment ใน blog post โดยไม่ต้อง login
-AI: [identify module → delegate → ถาม 3 ข้อ → draft → confirm → save]
+AI: [identify module → delegate → ask 3 questions → draft → confirm → save]
     ✅ Spec Created: TASK-20260501-1430
 ```
 
@@ -438,19 +442,19 @@ AI: [identify module → delegate → ถาม 3 ข้อ → draft → confir
 ```
 dev: /spec --quick เพิ่ม GET /health endpoint คืน {status: "ok"}
 AI: [skip ambiguity → draft → confirm → save]
-    ⚠️ Assumed defaults: ไม่มี auth, ไม่มี rate limit
+    ⚠️ Assumed defaults: no auth, no rate limit
 ```
 
 **Vague requirement**
 ```
 dev: /spec อยากได้ระบบ notification
-AI: "Requirement กว้างไป — channel ไหน? trigger จากอะไร? ..."
+AI: "Requirement too broad — which channel? triggered by what? ..."
 ```
 
-**Conflict กับของเดิม**
+**Conflict with existing feature**
 ```
 dev: /spec ให้ user login ด้วย OTP ผ่าน SMS
-AI: "⚠️ พบ TASK-20260424-1153 (Login + JWT) ที่อาจซ้อน
-     A) /spec — feature ใหม่แยก
-     B) /change TASK-20260424-1153 — เปลี่ยน auth flow เดิม"
+AI: "⚠️ Found TASK-20260424-1153 (Login + JWT) which may overlap
+     A) /spec — separate new feature
+     B) /change TASK-20260424-1153 — change the existing auth flow"
 ```
