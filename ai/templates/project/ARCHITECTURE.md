@@ -1,16 +1,16 @@
-<!-- TEMPLATE: <project>/.ai/context/ARCHITECTURE.md — ภาพรวมระบบ + ADR ที่มีผลกับหลาย repo -->
-<!-- ทุก entry ต้องอ้าง repo + file path จริงเป็นหลักฐาน — ADR ที่กระทบ repo เดียวให้ไปอยู่ใน <repo>/.ai/context/ARCHITECTURE.md -->
+<!-- TEMPLATE: <project>/.ai/context/ARCHITECTURE.md — system overview + ADRs affecting several repos -->
+<!-- Every entry must cite repo + real file path as evidence — ADRs affecting one repo belong in <repo>/.ai/context/ARCHITECTURE.md -->
 
 # System Architecture
 
-> อ่านก่อนเสนอ design ที่แตะมากกว่า 1 repo — เพิ่ม ADR ใหม่ได้เฉพาะเมื่อ dev confirm
+> Read before proposing a design that touches more than 1 repo — new ADRs only after the dev confirms
 
 ---
 
 ## Overview
 
 ```
-{ASCII diagram: repo/service ไหนคุยกับใคร ผ่านอะไร (HTTP / queue / DB / file)}
+{ASCII diagram: which repo/service talks to which, via what (HTTP / queue / DB / file)}
 ```
 
 ## Decisions (Cross-repo ADR)
@@ -21,15 +21,15 @@
 **Date**: {YYYY-MM-DD}
 **Affects**: `{repo}`, `{repo}`
 
-**Context**: {ปัญหาหรือข้อจำกัด}
-**Decision**: {ตัดสินใจอะไร}
-**Consequences**: {ผลที่ตามมาในแต่ละ repo}
-**Evidence**: `{repo}/{path}` — {ส่วนที่เป็นตัวอย่างจริง}
+**Context**: {problem or constraint}
+**Decision**: {what was decided}
+**Consequences**: {effects on each repo}
+**Evidence**: `{repo}/{path}` — {section that is a real example}
 
 ---
 
 ## Cross-repo Anti-patterns
 
-| Anti-pattern | ทำไมห้าม | ใช้อะไรแทน |
+| Anti-pattern | Why forbidden | Use instead |
 |---|---|---|
-| {เช่น repo หนึ่งอ่าน DB ของอีก repo ตรงๆ} | {} | {} |
+| {e.g. one repo reading another repo's DB directly} | {} | {} |

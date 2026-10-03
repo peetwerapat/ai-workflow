@@ -109,6 +109,7 @@ Codex/Antigravity มี shell wrapper (`codex()` / `agy()`) ที่ `install.
 ```
 repo ใหม่:     /ai-init                       scaffold .ai/ + project memory จากการอ่าน code จริง
 หลาย repo:     /ai-init --project             (ที่ root ของ project) shared context + .ai/ ของทุก repo ข้างใน
+ภาษา context:  /ai-init --lang th              ไฟล์ context เป็นไทย (default en — ประหยัด token)
 feature ใหม่:  /spec <requirement> → /build   → /reindex
 แก้ของเดิม:    /change <task-id> "<desc>"     → /reindex
 ดูภาพรวม:      /status | /status mine | /status <task-id>
@@ -118,6 +119,15 @@ feature ใหม่:  /spec <requirement> → /build   → /reindex
 > **Codex ใช้ `$` แทน `/`** — `$spec`, `$build`, `$ai-init`
 > **Antigravity** เรียกชื่อ skill ตรงๆ (`/skills` ดูรายการ)
 > **ZCode** ใช้ `/` เหมือน Claude — `/spec`, `/build`
+
+## ภาษาของไฟล์
+
+| ไฟล์ | ภาษา |
+|---|---|
+| `ai/` (AI.md, commands, agents, templates) | อังกฤษ — AI อ่าน ประหยัด token (`AI.md` โหลดทุก session) |
+| ไฟล์ context ใน repo งาน (memory, `MEMORY.md`, `ARCHITECTURE.md`, `PROJECT.md`, ...) | เลือกตอน `/ai-init --lang en\|th` (default `en`) — แก้ไฟล์เดิมทีหลังจะใช้ภาษาเดิมของไฟล์นั้น |
+| spec (`specs/TASK-*.md`) | ไทย (business rule / edge case) + technical term อังกฤษ |
+| ที่ agent ตอบคุณ | ไทยเสมอ |
 
 ## Context 2 ชั้น
 

@@ -1,31 +1,31 @@
-<!-- TEMPLATE: project memory file — วางที่ root ของ repo ในชื่อ CLAUDE.md / AGENTS.md / GEMINI.md -->
-<!-- ทุกหัวข้อต้องเติมจากการอ่าน code จริง — หัวข้อไหนไม่พบให้เขียนว่า "ไม่พบ" ห้ามเดา -->
+<!-- TEMPLATE: project memory file — placed at the repo root as CLAUDE.md / AGENTS.md / GEMINI.md (or .ai/context/MEMORY.md in Team memory mode) -->
+<!-- Fill every section from reading real code — if not found write "not found", never guess -->
 
 # {Project Name}
 
-{1-2 บรรทัด: ระบบนี้คืออะไร ใช้กับใคร}
-{ถ้า multi-tenant: หน่วย isolation คืออะไร key ชื่ออะไร}
+{1-2 lines: what this system is and who uses it}
+{if multi-tenant: the isolation unit and its key name}
 
-> Global working agreement อยู่ที่ `~/.ai/AI.md` — ไฟล์นี้เก็บเฉพาะเรื่องที่เป็นของ project นี้
-> **Multi-repo project** (ลบบรรทัดนี้ถ้าเป็น repo เดี่ยว): repo นี้เป็นส่วนหนึ่งของ `{project}` — shared context อยู่ที่ [`{../}.ai/context/PROJECT.md`]({../}.ai/context/PROJECT.md) อ่านก่อน และห้าม copy เนื้อหาจากที่นั่นมาไว้ในไฟล์นี้
+> Global working agreement lives at `~/.ai/AI.md` — this file holds only what is specific to this project
+> **Multi-repo project** (delete this line for a standalone repo): this repo is part of `{project}` — shared context at [`{../}.ai/context/PROJECT.md`]({../}.ai/context/PROJECT.md); read it first and never copy its content into this file
 
 ---
 
 ## Domain Model
 
 ```
-{ASCII diagram ของ entity หลักและความสัมพันธ์}
+{ASCII diagram of the main entities and their relations}
 ```
 
 | Entity | Role | Tenant key |
 |---|---|---|
-| {Entity} | {หน้าที่} | {key หรือ —} |
+| {Entity} | {responsibility} | {key or —} |
 
 ## Personas
 
 | Persona | Scope |
 |---|---|
-| {persona} | {เข้าถึงอะไรได้ / auth แบบไหน} |
+| {persona} | {what they can access / auth type} |
 
 ---
 
@@ -40,38 +40,38 @@
 - **Test**: {runner} — `{command}`
 - **Lint / Format / Typecheck**: `{commands}`
 - **Migration**: `{command}`
-- **Docs**: {swagger/openapi path ถ้ามี}
+- **Docs**: {swagger/openapi path if any}
 
-รายละเอียด architecture decisions → [.ai/context/ARCHITECTURE.md](.ai/context/ARCHITECTURE.md)
+Architecture decisions → [.ai/context/ARCHITECTURE.md](.ai/context/ARCHITECTURE.md)
 
 ---
 
 ## Critical Rules
 
-### 1. {Tenant isolation / rule ที่ non-negotiable ที่สุดของ project นี้}
+### 1. {Tenant isolation / the most non-negotiable rule of this project}
 
-{กติกา + ตัวอย่าง code pattern จริงจาก repo}
+{rule + real code pattern from the repo}
 
 ### 2. Layering
 
 ```
-{Layer → Layer → Layer ที่ใช้จริง}
+{Layer → Layer → Layer actually used}
 ```
 
-- ❌ ห้าม {anti-pattern ที่เจอจริงหรือที่ project ห้าม}
-- ✅ {pattern ที่ต้องใช้} — ตัวอย่าง: `{path}`
+- ❌ Never {anti-pattern found or forbidden by the project}
+- ✅ {required pattern} — example: `{path}`
 
 ### 3. Error Handling
 
-{exception/error class ที่ใช้ + mapping ไป status code + ตัวอย่าง}
+{exception/error classes used + mapping to status codes + example}
 
 ### 4. API / Response Shape
 
-{envelope ที่ใช้ + ตัวอย่าง + convention ของ route path}
+{envelope used + example + route path convention}
 
 ### 5. Database Migration
 
-{command ที่ต้องใช้ generate + naming + ข้อห้าม}
+{command to generate + naming + prohibitions}
 
 ### 6. Security
 
@@ -91,25 +91,25 @@
 | DB tables / columns | {} | {} |
 | env vars | {} | {} |
 
-> ตั้งชื่อเต็มคำ ห้ามย่อ — `customerRepository` ไม่ใช่ `custRepo`
-> ยกเว้นตัวย่อมาตรฐาน (`id`, `url`, `db`, `dto`, `i18n`) และ loop index สั้นใน scope แคบ
+> Use full words, no abbreviations — `customerRepository`, not `custRepo`
+> Except standard abbreviations (`id`, `url`, `db`, `dto`, `i18n`) and short loop indexes in narrow scope
 
 ### File / Folder Layout (per module)
 
 ```
-{โครงสร้างจริงของ 1 module}
+{real structure of one module}
 ```
 
 ### Testing
 
-{test ที่มีอยู่จริง + coverage ปัจจุบัน + pattern ที่ใช้ mock}
+{existing tests + current coverage + mocking pattern used}
 
 ---
 
-## Directory Structure (จริง)
+## Directory Structure (real)
 
 ```
-{tree ของ source dir จริง — ไม่ใช่ที่คิดว่าน่าจะเป็น}
+{tree of the real source dir — not what it is assumed to be}
 ```
 
 ---
@@ -117,13 +117,13 @@
 ## Module Dependency
 
 ```
-{ลำดับ dependency ระหว่าง module}
+{dependency order between modules}
 ```
 
-ก่อนแก้ module ใด → อ่าน rule file ของ module นั้นก่อน (ถ้ามี)
+Before changing a module → read that module's rule file first (if any)
 
 ---
 
 ## Known Gaps
 
-- {สิ่งที่ยังไม่ได้ทำ / หนี้ทางเทคนิคที่ AI ควรรู้}
+- {unfinished work / technical debt the AI should know}

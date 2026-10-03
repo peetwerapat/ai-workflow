@@ -1,24 +1,26 @@
 ---
-description: แก้ feature เดิม — bug fix / requirement change / refactor พร้อม impact analysis
+description: Modify an existing feature — bug fix / requirement change / refactor with impact analysis
 argument-hint: <task-id> "<description>" [--quick | --dry-run | --cancel <reason> | --deprecate <reason>]
 ---
 
 # /change — Modify Existing Feature
 
-แก้ feature ที่มีอยู่แล้ว — ครอบคลุม 3 use cases ใน command เดียว:
-- **Bug fix** — code เคยทำผิด → แก้ให้ตรง spec
-- **Requirement change** — spec เปลี่ยน → code ตาม
-- **Refactor** — internal change, behavior เหมือนเดิม
+> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
 
-AI แยกประเภทให้อัตโนมัติจาก description
+Modify an existing feature — covers 3 use cases in one command:
+- **Bug fix** — code behaved wrongly → fix it to match the spec
+- **Requirement change** — spec changes → code follows
+- **Refactor** — internal change, behavior unchanged
+
+AI classifies the type automatically from the description.
 
 ## Context Files
 
-- shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
-  - แตะ contract ใน `integrations.md` → flag repo ฝั่ง consumer ใน risk + เสนออัปเดต shared (ห้ามแก้เอง)
-- project memory file ที่ root + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
+- shared project context (if any — see `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + files in the context map relevant to the task
+  - Touches a contract in `integrations.md` → flag consumer-side repos in risk + propose a shared update (do not edit it yourself)
+- project memory file at root + `.ai/context/MEMORY.md` (if any — the team's wins on conflict)
 - `.ai/context/ARCHITECTURE.md`
-- `.ai/context/specs/{task-id}.md` (หรือ `CLOSED-TASK-{id}.md`) — **source of truth**
+- `.ai/context/specs/{task-id}.md` (or `CLOSED-TASK-{id}.md`) — **source of truth**
 
 ## Runtime Info
 
@@ -35,15 +37,15 @@ date "+%Y-%m-%d"
 
 Format: `<task-id> "<description>" [flags]`
 
-- **task-id** (required, token แรก): `TASK-YYYYMMDD-HHMM` หรือ legacy `{MODULE}-{NNN}`
-- **description** (required): ใส่ prefix บังคับ type ได้ — `"refactor: ..."`, `"fix: ..."`, `"change: ..."`
+- **task-id** (required, first token): `TASK-YYYYMMDD-HHMM` or legacy `{MODULE}-{NNN}`
+- **description** (required): may include a prefix to force the type — `"refactor: ..."`, `"fix: ..."`, `"change: ..."`
 - **Flags**:
-  - `--quick` — skip impact analysis (เฉพาะ change เล็กและชัด)
-  - `--dry-run` — แสดง impact analysis อย่างเดียว ไม่แก้จริง
+  - `--quick` — skip impact analysis (only for small, clear changes)
+  - `--dry-run` — show impact analysis only, no real edits
   - `--cancel <reason>` — Status → ❌, Changelog `CANCELLED`
   - `--deprecate <reason>` — Status → 📦, Changelog `DEPRECATED`
 
-**args ไม่ครบ** → แจ้ง format ที่ถูกต้อง + หยุด
+**Missing args** → show the correct format + stop
 
 ---
 
@@ -56,58 +58,58 @@ input: TASK-20260501-1430 "login ค้างเมื่อ Redis down" --quick
 → flags: [--quick]
 ```
 
-task-id ไม่ match pattern → หยุด:
+task-id does not match the pattern → stop:
 ```
-❌ "{input}" ไม่ใช่ task-id ที่ valid
-Format: TASK-YYYYMMDD-HHMM หรือ {MODULE}-{NNN}
-ค้นหา: /status <keyword>
+❌ "{input}" is not a valid task-id
+Format: TASK-YYYYMMDD-HHMM or {MODULE}-{NNN}
+Search: /status <keyword>
 ```
 
 ---
 
 ## Step 2: Pre-flight Check
 
-### 2.1 หา spec file
+### 2.1 Find the spec file
 
-ลองตามลำดับ:
+Try in order:
 1. `.ai/context/specs/TASK-{id}.md` (active)
 2. `.ai/context/specs/CLOSED-TASK-{id}.md` (closed)
-3. multi-repo project → `<project>/.ai/context/specs/` (active แล้ว closed) — ดู AI.md › Cross-repo Task
+3. multi-repo project → `<project>/.ai/context/specs/` (active, then closed) — see AI.md › Cross-repo Task
 
-**ไม่พบทั้ง 2**:
+**Neither found**:
 ```
-❌ ไม่พบ spec file สำหรับ {task-id}
+❌ No spec file found for {task-id}
 
-- Task ID ถูกไหม? → `/status {task-id}`
-- ถ้าเป็น feature ใหม่ → ใช้ `/spec` ไม่ใช่ `/change`
+- Is the Task ID correct? → `/status {task-id}`
+- If this is a new feature → use `/spec`, not `/change`
 ```
 
-### 2.2 Reopen check (ถ้าเป็น CLOSED file)
+### 2.2 Reopen check (if it is a CLOSED file)
 
-rename กลับเป็น active ก่อน: `git mv CLOSED-TASK-{id}.md TASK-{id}.md`
-(`/reindex` รอบถัดไปจะ append `REOPENED` Changelog entry ให้)
+Rename back to active first: `git mv CLOSED-TASK-{id}.md TASK-{id}.md`
+(the next `/reindex` will append the `REOPENED` Changelog entry)
 
 ### 2.3 Check Status
 
 | Status | Action |
 |---|---|
 | ✅ Done | ✅ proceed |
-| ⚠️ Done (untested) | ⚠️ warn + proceed (test อาจมีปัญหาอยู่แล้ว) |
-| 🚧 In Progress | ⚠️ ถาม: ยังไม่ build เสร็จ — แก้ spec แล้ว `/build --resume` ดีกว่าไหม? |
-| 📋 Planned | ❌ หยุด — ยังไม่ build, แก้ spec file ตรงๆ หรือ cancel + `/spec` ใหม่ |
-| 🔴 Blocked | ⚠️ ถาม blocker ก่อน |
-| ❌ Cancelled / 📦 Deprecated | ❌ หยุด (ถ้าจะรื้อ → reopen ก่อน) |
+| ⚠️ Done (untested) | ⚠️ warn + proceed (tests may already have issues) |
+| 🚧 In Progress | ⚠️ ask: build not finished yet — better to edit the spec then `/build --resume`? |
+| 📋 Planned | ❌ stop — not built yet, edit the spec file directly or cancel + new `/spec` |
+| 🔴 Blocked | ⚠️ ask about the blocker first |
+| ❌ Cancelled / 📦 Deprecated | ❌ stop (to revive → reopen first) |
 
 ---
 
 ### 2.4 Cross-repo spec (`**Scope**: cross-repo`)
 
-- impact analysis ครอบคลุม **ทุก repo ใน `**Repos**:`** + repo อื่นที่ `integrations.md` บอกว่า consume contract ที่จะแก้
-- change ต้องแตะ repo ที่ยังไม่อยู่ใน `**Repos**:` → แสดงใน Change Plan + ขอ confirm แล้วเพิ่มเข้า Repos / Design / Implementation Status
-- Execute (Step 7) ทีละ repo ตาม build order — test ด้วย command ของแต่ละ repo
-- Changelog ระบุ repo ที่แตะ: `{TYPE} [{repo}, {repo}]` / update แถวใน Implementation Status + Overall Status
-- เปิด session ที่ root ของ project ถ้าต้องเขียนหลาย repo (เหมือน `/build`)
-- spec เดิมเป็น repo-level แต่ change ลามไป repo อื่น → เสนอ `/spec` cross-repo ใหม่สำหรับส่วนที่ข้าม repo (อ้าง task เดิม) แทนการยัดลง spec ของ repo เดียว
+- Impact analysis covers **every repo in `**Repos**:`** + other repos that `integrations.md` says consume the contract being changed
+- Change must touch a repo not yet in `**Repos**:` → show it in the Change Plan + ask for confirm, then add it to Repos / Design / Implementation Status
+- Execute (Step 7) one repo at a time in build order — test with each repo's own command
+- Changelog names the repos touched: `{TYPE} [{repo}, {repo}]` / update rows in Implementation Status + Overall Status
+- Open the session at the project root if writing to multiple repos (same as `/build`)
+- Original spec is repo-level but the change spreads to another repo → propose a new cross-repo `/spec` for the cross-repo part (referencing the original task) instead of stuffing it into a single repo's spec
 
 ---
 
@@ -127,10 +129,10 @@ REFACTORED: refactor, cleanup, extract, rename, move, reorganize, simplify, ป�
 Default:    CHANGED
 ```
 
-**Priority 3 — confirm** ถ้า confidence ต่ำ:
+**Priority 3 — confirm** if confidence is low:
 ```
-Change type ที่เดา: {TYPE}
-A) {TYPE} — ตามที่เดา
+Guessed change type: {TYPE}
+A) {TYPE} — as guessed
 B) Override (FIXED / CHANGED / REFACTORED)
 ```
 
@@ -138,38 +140,38 @@ B) Override (FIXED / CHANGED / REFACTORED)
 
 ## Step 4: Impact Analysis
 
-**`--quick` → ข้ามไป Step 6**
+**`--quick` → skip to Step 6**
 
-> ⚠️ `--quick` ใช้เฉพาะ change เล็กและชัด
-> **ห้ามใช้กับ**: auth, payment, การคำนวณเงิน, multi-tenant, data migration
-> ถ้า dev สั่ง `--quick` กับงานกลุ่มนี้ → warn แล้วทำ analysis เต็มอยู่ดี
+> ⚠️ `--quick` is only for small, clear changes
+> **Never use for**: auth, payment, money calculation, multi-tenant, data migration
+> If the dev passes `--quick` for these → warn and do the full analysis anyway
 
-### ปกติ → Delegate to impact-analyzer
+### Normal → Delegate to impact-analyzer
 
 **Input:**
 ```
 Task ID: {task-id}
 Current spec path: .ai/context/specs/{task-id}.md
-Current code files: {list จาก Implementation Status}
+Current code files: {list from Implementation Status}
 Change description: {description}
 Change type (detected): {FIXED | CHANGED | REFACTORED}
 ```
 
 **Expect output:**
-- **Conflict check** (สำคัญสุด)
+- **Conflict check** (most important)
 - Risk level (🔴 / 🟡 / 🟢) + reasoning
 - Affected files (direct + indirect)
 - Test impact (existing / new)
-- Proposed approach (1-2 options ถ้ามี trade-off)
+- Proposed approach (1-2 options if there is a trade-off)
 - Confidence assessment
 
-**ถ้า runtime ไม่รองรับ subagent** → อ่าน `~/.ai/agents/impact-analyzer.md` แล้วทำตาม process นั้นเอง
+**If the runtime does not support subagents** → read `~/.ai/agents/impact-analyzer.md` and follow that process yourself
 
 ---
 
-## Step 5: Handle Conflict (ถ้ามี)
+## Step 5: Handle Conflict (if any)
 
-เจอ conflict กับ business rule เดิม → **หยุดทันที**:
+Conflict with an existing business rule → **stop immediately**:
 
 ```
 ⚠️ Business Rule Conflict Detected
@@ -184,14 +186,14 @@ Change type (detected): {FIXED | CHANGED | REFACTORED}
 - {what will be removed/modified}
 - {side effects}
 
-### ต้องการ confirm จาก BA/PO
-1. ต้องการเปลี่ยน business rule นี้จริงไหม?
-2. เหตุผล? (จะบันทึกใน Changelog permanent)
+### Needs confirmation from BA/PO
+1. Do you really want to change this business rule?
+2. Reason? (will be recorded permanently in the Changelog)
 
-พิมพ์ "confirm: <reason>" เพื่อไปต่อ / "cancel" เพื่อหยุด
+Type "confirm: <reason>" to continue / "cancel" to stop
 ```
 
-**ไม่มี confirm + reason → ไม่ proceed**
+**No confirm + reason → do not proceed**
 
 ---
 
@@ -208,31 +210,31 @@ Change type (detected): {FIXED | CHANGED | REFACTORED}
 - `{path}` — {what changes}
 
 ### 🔗 Indirect Impact
-{cross-module impact หรือ "Isolated — ไม่กระทบ module อื่น"}
+{cross-module impact or "Isolated — no impact on other modules"}
 
 ### 🧪 Affected Tests
-- `{test file}` — test "{name}" (อาจต้องแก้)
+- `{test file}` — test "{name}" (may need edits)
 
 ### 💡 Approach
-{approach เดียว ถ้าชัด}
+{single approach, if clear}
 
-{หรือถ้ามี trade-off:}
+{or if there is a trade-off:}
 Option A: {name} — Pros / Cons
 Option B: {name} — Pros / Cons
-เลือก A หรือ B?
+Choose A or B?
 
 ### ⚠️ Pre-execution Checklist
-- [ ] เข้าใจ risk level แล้ว
-- [ ] มี test coverage ในไฟล์ที่จะแก้
-- [ ] Breaking change มี migration path (ถ้ามี)
+- [ ] Risk level understood
+- [ ] Test coverage exists for the files to be edited
+- [ ] Breaking change has a migration path (if any)
 
-พิมพ์ "confirm" เพื่อ execute / "cancel" เพื่อหยุด
+Type "confirm" to execute / "cancel" to stop
 ```
 
-### `--dry-run` → หยุดที่นี่
+### `--dry-run` → stop here
 ```
-✅ Dry-run complete — ไม่มีการเปลี่ยนแปลงไฟล์
-ต้องการ execute จริง → รัน command เดิม **ไม่มี** --dry-run
+✅ Dry-run complete — no files changed
+To execute for real → run the same command **without** --dry-run
 ```
 
 ---
@@ -241,53 +243,53 @@ Option B: {name} — Pros / Cons
 
 ### 7.1 Generate Revision ID
 
-หา revision ล่าสุดจาก Changelog ใน spec file:
+Find the latest revision in the spec file's Changelog:
 ```
-{task-id}-R02 (ล่าสุด) → ต่อไป R03
-ไม่มี R → R01
+{task-id}-R02 (latest) → next R03
+no R → R01
 ```
-Format: `{task-id}-R{NN}` (2 หลัก zero-padded)
+Format: `{task-id}-R{NN}` (2 digits, zero-padded)
 
 ### 7.2 Edit Files One-by-One
 
-**ห้ามแก้หลายไฟล์พร้อมกัน**
+**Never edit multiple files at once**
 
 ```
-สำหรับแต่ละไฟล์:
-  1. อ่าน content ปัจจุบัน
+For each file:
+  1. Read current content
   2. Apply change
-  3. รัน test ที่เกี่ยวข้อง
-  4. fail → วิเคราะห์ + แก้ (สูงสุด 3 รอบ)
-  5. ยัง fail → rollback ไฟล์นี้ + report dev
-  6. ไฟล์ถัดไป
+  3. Run related tests
+  4. fail → analyze + fix (max 3 attempts)
+  5. still failing → rollback this file + report to dev
+  6. next file
 ```
 
 ### 7.3 Test Strategy per Type
 
 **FIXED**
-- เขียน regression test **ก่อน** fix (TDD-ish) — ต้อง fail ก่อน, pass หลัง
-- หา test เดิมไม่เจอ → เขียนใหม่
+- Write a regression test **before** the fix (TDD-ish) — must fail before, pass after
+- No existing test found → write a new one
 
 **CHANGED**
-- Update test เดิมให้ตรง spec ใหม่
-- เพิ่ม test cases ที่เกิดจาก rule ใหม่
+- Update existing tests to match the new spec
+- Add test cases arising from the new rule
 
 **REFACTORED**
-- test เดิมต้อง **pass เหมือนเดิม** — ไม่แก้ test
-- test พัง = ไม่ใช่ refactor แต่เป็น change → หยุด + confirm
-- ไม่เพิ่ม test ใหม่
+- Existing tests must **pass unchanged** — do not edit tests
+- Tests break = not a refactor but a change → stop + confirm
+- Do not add new tests
 
 ### 7.4 Handle Test Failures
 
-**FIXED / CHANGED**: attempt 1 → 2 → 3 แล้วหยุด (ปล่อยไฟล์ที่แก้ไว้, mark 🚧)
+**FIXED / CHANGED**: attempt 1 → 2 → 3 then stop (leave edited files, mark 🚧)
 
 **REFACTORED**:
 ```
-⚠️ Test เดิม fail หลัง refactor
-นี่อาจไม่ใช่ refactor แท้ — behavior เปลี่ยนไป
+⚠️ Existing tests fail after refactor
+This may not be a true refactor — behavior changed
 
-A) Rollback (ไม่ refactor ตรงนี้)
-B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม behavior ใหม่)
+A) Rollback (don't refactor here)
+B) Change type to CHANGED (update tests to the new behavior)
 ```
 
 ---
@@ -298,16 +300,16 @@ B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม beh
 
 ```markdown
 - **{date}** {TYPE} — {description}
-  - **Reason**: {reason — required สำหรับ CHANGED / FIXED / CANCELLED / DEPRECATED}
+  - **Reason**: {reason — required for CHANGED / FIXED / CANCELLED / DEPRECATED}
   - **Files**: {affected files}
   - **Revision**: {revision-id}
 ```
 `{TYPE}` ∈ `CHANGED` / `FIXED` / `REFACTORED` / `CANCELLED` / `DEPRECATED`
 
-### 8.2 Update sections อื่น (ตาม type)
+### 8.2 Update other sections (by type)
 
-**CHANGED + business rule เปลี่ยน** → update `## Business Rules`, `## Ambiguity Resolutions`
-**`--cancel` / `--deprecate`** → update `**Status**:` เป็น ❌ / 📦
+**CHANGED + business rule changed** → update `## Business Rules`, `## Ambiguity Resolutions`
+**`--cancel` / `--deprecate`** → update `**Status**:` to ❌ / 📦
 
 ### 8.3 Last Updated
 ```markdown
@@ -315,9 +317,9 @@ B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม beh
 ```
 
 ### 8.4 Status
-ส่วนใหญ่ไม่เปลี่ยน (ยัง ✅) ยกเว้น:
-- test fail 3 รอบ → 🚧
-- major change ที่ต้อง re-test เยอะ → อาจลดเป็น ⚠️
+Usually unchanged (stays ✅) except:
+- tests fail 3 attempts → 🚧
+- major change needing lots of re-testing → may downgrade to ⚠️
 
 ---
 
@@ -337,18 +339,18 @@ B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม beh
 
 ### Doc Updates
 - spec file: appended Changelog + updated Last Updated
-- features.md: ยังไม่ update — รัน `/reindex`
+- features.md: not updated yet — run `/reindex`
 
 ### ⚠️ Assumptions Made
 1. ...
 
-### 🔍 จุดที่ควร Review
+### 🔍 Points to Review
 1. ...
 
 ### Next Steps
 - `git diff` review
-- `/reindex` เพื่อ update features.md
-- Commit (suggested — cross-repo: แยก commit ต่อ repo ใส่ Task เดียวกัน):
+- `/reindex` to update features.md
+- Commit (suggested — cross-repo: separate commit per repo with the same Task):
   ```
   {type}({module}): {description}
 
@@ -361,19 +363,19 @@ B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม beh
 ## Rules
 
 ### Must Do
-- **Validate task-id ก่อน analyze**
-- **Delegate impact analysis** — ไม่ analyze เอง (ยกเว้น runtime ไม่รองรับ)
-- **หยุดถ้าเจอ conflict** — รอ dev ยืนยัน + reason
-- **Test หลังทุกไฟล์** — detect regression เร็ว
-- **บันทึก reason ใน Changelog** สำหรับ FIXED และ CHANGED
+- **Validate task-id before analyzing**
+- **Delegate impact analysis** — don't analyze yourself (unless the runtime doesn't support it)
+- **Stop on conflict** — wait for dev confirmation + reason
+- **Test after every file** — detect regressions early
+- **Record reason in Changelog** for FIXED and CHANGED
 
 ### Must Not
-- ❌ **แก้หลายไฟล์พร้อมกัน**
-- ❌ **Skip impact analysis** สำหรับ auth / payment / เงิน / multi-tenant / migration แม้มี `--quick`
-- ❌ **Mark ✅ ถ้า test fail**
-- ❌ **แก้ test ใน REFACTORED**
-- ❌ **Commit อัตโนมัติ**
-- ❌ **แตะ `features.md`**
+- ❌ **Edit multiple files at once**
+- ❌ **Skip impact analysis** for auth / payment / money / multi-tenant / migration even with `--quick`
+- ❌ **Mark ✅ if tests fail**
+- ❌ **Edit tests in REFACTORED**
+- ❌ **Commit automatically**
+- ❌ **Touch `features.md`**
 
 ---
 
@@ -382,37 +384,37 @@ B) เปลี่ยน type เป็น CHANGED (แก้ test ตาม beh
 **Description vague**
 ```
 dev: /change TASK-XXX "แก้ตรง login"
-AI: คำอธิบายไม่ชัด — bug อะไร? / requirement เปลี่ยนตรงไหน? / หรือแค่ refactor?
+AI: Description unclear — what bug? / which requirement changed? / or just a refactor?
 ```
 
-**Feature ยังไม่ build (📋)**
+**Feature not built yet (📋)**
 ```
-⚠️ {task-id} ยังไม่ build — /change ใช้กับ feature ที่ build แล้ว
-A) แก้ spec file ตรงๆ → แล้วรัน /build
-B) Cancel + /spec ใหม่
+⚠️ {task-id} is not built yet — /change is for features that are already built
+A) Edit the spec file directly → then run /build
+B) Cancel + new /spec
 ```
 
-**หลาย change ใน command เดียว**
+**Multiple changes in one command**
 ```
 dev: /change TASK-XXX "fix login + add rate limit + change UI"
-AI: ตรวจพบ 3 change — แยก 3 commands ดีกว่า (แต่ละอันมี revision + audit ของตัวเอง)
+AI: Detected 3 changes — better as 3 separate commands (each gets its own revision + audit)
 ```
 
 **Rollback**
 ```
-dev: cancel (หลัง test fail 3 รอบ)
+dev: cancel (after tests fail 3 attempts)
 AI: 1. `git checkout .` revert working tree
-    2. ตรวจไฟล์ใหม่ที่ AI สร้าง
-    3. spec file ยังไม่ถูกแก้ (Step 8 ยังไม่ถึง)
-    → state กลับเป็นก่อน /change
+    2. Check new files created by AI
+    3. spec file not edited yet (Step 8 not reached)
+    → state returns to before /change
 ```
 
 ---
 
 ## Output Language
 
-- ตอบเป็น**ภาษาไทย**
-- Technical terms, code, paths, task-id, revision-id, commit message → **อังกฤษ**
+- Reply in **Thai**
+- Technical terms, code, paths, task-id, revision-id, commit message → **English**
 
 ---
 
@@ -420,15 +422,15 @@ AI: 1. `git checkout .` revert working tree
 
 ```
 dev: /change TASK-20260424-1430 "login ค้างเมื่อ Redis down"
-AI: [FIXED → impact → เสนอ timeout vs circuit breaker → dev เลือก A → implement + regression test]
+AI: [FIXED → impact → propose timeout vs circuit breaker → dev picks A → implement + regression test]
     ✅ Change Complete: TASK-20260424-1430-R01 (FIXED)
 
 dev: /change TASK-20260424-1445 "comment ต้องมี captcha + rate limit 3/hr"
-AI: ⚠️ Conflict: spec เดิมระบุ "ไม่มี rate limit" — ขอ reason?
+AI: ⚠️ Conflict: original spec states "no rate limit" — reason?
 dev: confirm: โดน spam ยิงจริง
 AI: ✅ Change Complete: TASK-20260424-1445-R01 (CHANGED)
 
 dev: /change AUTH-001 "refactor: แยก JWT validation เป็น guard"
-AI: [REFACTORED → low risk → implement → test เดิม pass ไม่แก้ test]
+AI: [REFACTORED → low risk → implement → existing tests pass, tests not edited]
     ✅ Change Complete: AUTH-001-R01 (REFACTORED)
 ```

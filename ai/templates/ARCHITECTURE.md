@@ -1,10 +1,10 @@
 <!-- TEMPLATE: .ai/context/ARCHITECTURE.md -->
-<!-- ทุก entry ต้องอ้าง file path จริงเป็นหลักฐาน — ไม่มีหลักฐาน = ไม่ใส่ -->
+<!-- Every entry must cite a real file path as evidence — no evidence = do not include -->
 
 # Architecture
 
-> ADR + patterns ของ project นี้ — `/spec`, `/build`, `/change` อ่านไฟล์นี้ก่อนเสนอ design
-> เพิ่ม ADR ใหม่ได้เฉพาะเมื่อ dev confirm
+> ADRs + patterns of this project — `/spec`, `/build`, `/change` read this before proposing a design
+> New ADRs are added only after the dev confirms
 
 ---
 
@@ -15,30 +15,30 @@
 **Status**: Accepted | Superseded by ADR-XXX
 **Date**: {YYYY-MM-DD}
 
-**Context**: {ปัญหาหรือข้อจำกัดที่ทำให้ต้องตัดสินใจ}
-**Decision**: {ตัดสินใจอะไร}
-**Consequences**: {ผลที่ตามมา ทั้งดีและแย่}
-**Evidence**: `{path}` — {บรรทัด/ส่วนที่เป็นตัวอย่างจริง}
+**Context**: {problem or constraint that forced the decision}
+**Decision**: {what was decided}
+**Consequences**: {resulting effects, good and bad}
+**Evidence**: `{path}` — {line/section that is a real example}
 
 ---
 
-## Patterns (ต้องทำตาม)
+## Patterns (must follow)
 
 ### {Pattern name}
 
-{คำอธิบาย}
+{description}
 
 ```
-{ตัวอย่าง code จริงจาก repo}
+{real code example from the repo}
 ```
 
-**ใช้ที่**: `{path}`, `{path}`
+**Used in**: `{path}`, `{path}`
 
 ---
 
-## Anti-patterns (ห้ามทำ)
+## Anti-patterns (forbidden)
 
-| Anti-pattern | ทำไมห้าม | ใช้อะไรแทน |
+| Anti-pattern | Why forbidden | Use instead |
 |---|---|---|
 | {} | {} | {} |
 
@@ -52,4 +52,4 @@
 
 ## Performance Notes
 
-- {known bottleneck / index ที่ต้องมี / query ที่ต้องระวัง}
+- {known bottleneck / required index / query to watch}
