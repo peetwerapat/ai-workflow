@@ -13,7 +13,7 @@ argument-hint: <requirement> [--quick]
 อ่านก่อนเริ่มเสมอ:
 - shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
   - แตะ contract ใน `integrations.md` → flag repo ฝั่ง consumer ใน risk + เสนออัปเดต shared (ห้ามแก้เอง)
-- project memory file ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตัวที่มี)
+- project memory file ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตัวที่มี) + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/features.md` (overview เท่านั้น)
 

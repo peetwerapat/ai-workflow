@@ -9,7 +9,7 @@ argument-hint: [--project | --repo] [--force]
 
 | ระดับ | รันที่ | สร้าง |
 |---|---|---|
-| **Repo** (default — behavior เดิม) | root ของ git repo | memory file ที่ root + `.ai/context/` (`ARCHITECTURE.md`, `features.md`, `untracked.md`, `specs/`) |
+| **Repo** (default — behavior เดิม) | root ของ git repo | memory file ที่ root (หรือ `.ai/context/MEMORY.md` ถ้าทีม track memory file ไว้แล้ว) + `.ai/context/` (`ARCHITECTURE.md`, `features.md`, `untracked.md`, `specs/`) |
 | **Project** (multi-repo) | folder ที่มีหลาย git repo อยู่ข้างใน | `<project>/.ai/context/` (shared + cross-repo specs) + Repo-level ของแต่ละ repo ที่ตรวจเจอ |
 
 context ทั้งหมดเป็น **local-only ของเครื่องนี้** — exclude ออกจาก git อัตโนมัติ ไม่ commit ขึ้น repo
@@ -57,6 +57,12 @@ for d in */; do [ -e "$d.git" ] && echo "$d"; done  # ลูกตรงที�
 
 - `.ai/context/` มีหรือยัง
 - project memory file ที่ root (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) — มีตัวไหนบ้าง
+- **memory file ไหนเป็นของทีม** (track อยู่ใน git):
+  ```bash
+  git ls-files CLAUDE.md AGENTS.md GEMINI.md .claude/CLAUDE.md AGENTS.override.md
+  ```
+  มีผลอย่างน้อย 1 ไฟล์ → **Team memory mode** (ดู 4.1) — แจ้ง dev ตั้งแต่ตอนนี้ว่าจะไม่แตะไฟล์เหล่านั้น
+- `.ai/context/MEMORY.md` มีหรือยัง (memory ส่วนตัวจาก Team memory mode รอบก่อน)
 - **Legacy context**: `.claude/context/`, `.codex/context/`, `.gemini/context/`, `.agents/context/` (ของเก่าที่แยกต่อ tool)
 - **Legacy commands/agents/skills**: `.claude/commands/`, `.claude/agents/`, `.codex/prompts/`, `.codex/agents/`, `.codex/skills/`, `.agents/skills/`, `.agents/workflows/`
 
@@ -124,6 +130,9 @@ C) Skip — สร้าง .ai/ เปล่าๆ
 
 **Git info**: `git config user.name`, `git log --oneline -20` (ดู commit message convention)
 
+**Team memory mode**: อ่าน memory file ของทีมทุกตัวก่อน — เป็น rule ที่ทีมตกลงแล้ว (authoritative)
+analyze เพื่อหา **ส่วนที่ไฟล์ของทีมยังไม่มี** + จุดที่ไฟล์ของทีม**ไม่ตรงกับ code** (เก็บไว้ใส่ Final Report)
+
 ---
 
 ## Step 3: Show Findings + Confirm
@@ -150,6 +159,7 @@ C) Skip — สร้าง .ai/ เปล่าๆ
 
 ### ไฟล์ที่จะสร้าง
 - `{memory file}` — project memory
+  (Team memory mode: `.ai/context/MEMORY.md` แทน — ไม่แตะ `{team memory files}` ของทีม)
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/features.md`
 - `.ai/context/untracked.md`
@@ -177,6 +187,15 @@ See [CLAUDE.md](CLAUDE.md) — same content, single source of truth.
 
 Content = template `project-memory.md` เติมด้วย: domain model, tech stack, layering, critical rules, conventions, directory structure ที่อ่านมาจริง
 
+**Team memory mode** (Step 1 เจอ memory file ที่ track อยู่) — แทนที่กติกาด้านบนทั้งหมด:
+- ❌ **ห้ามแก้ / เขียนเพิ่ม / เขียนทับ / rename** memory file ที่ track อยู่ — แม้มี `--force`
+- ❌ **ห้ามสร้าง memory file ใหม่ที่ root** (รวมไฟล์ pointer บรรทัดเดียว) — วันที่ทีมเพิ่มไฟล์ชื่อนั้น `git pull` จะชนกับไฟล์ untracked
+- ✅ เขียน memory ส่วนตัวที่ **`.ai/context/MEMORY.md`** (exclude ไปกับ `.ai/` อยู่แล้ว) — template `project-memory.md` เดียวกัน แต่:
+  - บรรทัดบนสุด: `> Team memory: {team memory files} (tracked — อ่านก่อนไฟล์นี้ / ขัดกัน → ของทีมชนะ)`
+  - เขียน **เฉพาะส่วนที่ไฟล์ของทีมยังไม่มี** — หัวข้อที่ทีมเขียนไว้แล้วให้เขียนแค่ `ดู {team file} › {หัวข้อ}` ❌ ห้าม copy มาซ้ำ
+  - มี `MEMORY.md` อยู่แล้ว → merge ไม่ทับ (ยกเว้น `--force`)
+- memory file ที่มีอยู่แต่ **ไม่ได้ track** (ของ dev เอง) → ไม่ใช่ของทีม ใช้กติกาปกติด้านบน
+
 ถ้า repo อยู่ใน multi-repo project (Step 0 เจอ `PROJECT.md` หรือกำลังรันจาก Project Mode) → คงบรรทัด **Multi-repo project** ใน template ไว้ (ชี้ path สัมพัทธ์ไปหา shared context)
 แล้วเขียนเฉพาะของ repo นี้ — domain / convention ที่อยู่ใน shared แล้วให้อ้างไปแทนการ copy
 ถ้าไม่ใช่ → ลบบรรทัดนั้นออก
@@ -193,8 +212,10 @@ Content = template `project-memory.md` เติมด้วย: domain model, t
 **4.6 Local-only context (default)** — ทำให้ context เห็นเฉพาะเครื่องนี้
 
 เพิ่มเข้า `.git/info/exclude` ของ repo งาน (exclude ระดับ clone — ไฟล์นี้ไม่มีทางถูก commit/push ติดไปด้วย):
-- memory file ที่สร้างจริง (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`)
+- memory file ที่สร้างจริง (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) — Team memory mode ไม่มี (ไม่ได้สร้างที่ root)
 - `.ai/`
+
+❌ ห้ามใส่ไฟล์ที่ track อยู่ลง exclude — ไม่มีผลกับไฟล์ที่ track แล้ว และทำให้เข้าใจผิดว่าซ่อนอยู่
 
 ```
 AGENTS.md
@@ -230,7 +251,7 @@ B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan 
 ## ✅ Project Initialized
 
 ### Files Created
-- `{memory file}` ({N} lines)
+- `{memory file}` ({N} lines)   ← Team memory mode: `.ai/context/MEMORY.md` ({N} lines) — `{team memory files}` ไม่ถูกแตะ
 - `.ai/context/ARCHITECTURE.md` ({N} ADRs)
 - `.ai/context/features.md` (empty index)
 - `.ai/context/untracked.md` ({N} entries)
@@ -239,6 +260,13 @@ B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan 
 ### ⚠️ ต้อง review เอง
 {จุดที่เดาจาก code แล้วอาจไม่ตรงเจตนาจริง}
 1. ...
+
+### 💬 เสนอทีม (Team memory mode — ถ้ามี)
+จุดที่ memory file ของทีม**ไม่ตรงกับ code** หรือขาดเรื่องสำคัญ — AI ไม่แก้ให้ dev ตัดสินใจเอง (เช่นเปิด PR):
+- `{team file}` › {หัวข้อ}: เขียนว่า {X} แต่ code จริง {Y} — evidence `{path}`
+  ```diff
+  {diff ที่เสนอ}
+  ```
 
 ### Migration Summary (ถ้ามี)
 - ย้าย: {N} spec files → `.ai/context/specs/` (git mv)
@@ -249,6 +277,7 @@ B) รัน /sync ตอนนี้เลย — ดูว่ามี orphan 
 ### Next Steps
 1. Review `{memory file}` + `ARCHITECTURE.md` — แก้ตรงที่ไม่ถูกได้เลย
 2. ตรวจว่า `git status` **ไม่แสดง** `.ai/` และ memory file — context เป็น local-only (exclude ไว้ที่ `.git/info/exclude` แล้ว) ไม่ต้อง commit และ ❌ อย่า commit
+   (Team memory mode: memory file ของทีมต้อง **ไม่มี diff** — `git diff --stat {team files}` ว่าง)
 3. `/spec <requirement>` เพื่อเริ่ม feature แรก
 4. `/sync` ถ้าอยากรู้ว่ามี code ที่ยังไม่มี spec เท่าไหร่
 ```
@@ -312,6 +341,7 @@ C) เลือก repo เอง: {ชื่อ}
 - `specs/.gitkeep` — เก็บเฉพาะ spec ที่แตะ ≥ 2 repo / spec ของ repo เดียวยังอยู่ใน repo นั้น
 
 **Project memory file** ที่ root ของ project — สั้นๆ ชี้ path เท่านั้น (ชื่อตาม assistant ที่รันอยู่ — กติกาเดียวกับ 4.1)
+root ของ project เป็น git repo ที่ track memory file ไว้แล้ว → ข้าม (Team memory mode — `PROJECT.md` ทำหน้าที่แทน)
 ใช้ตอน dev เปิด session ที่ root ของ project สำหรับงานข้าม repo:
 ```markdown
 # {Project Name}
@@ -386,6 +416,7 @@ Multi-repo project — shared context: [.ai/context/PROJECT.md](.ai/context/PROJ
 - ❌ **เขียน stack/pattern ที่ไม่ได้ verify จาก code** — ถ้าไม่เจอให้เขียนว่า "ไม่พบ" ไม่ใช่เดา
 - ❌ **ลบหรือทับไฟล์ที่มีอยู่โดยไม่ถาม**
 - ❌ **สร้าง memory file ซ้ำซ้อน** ถ้ามีตัวอื่นในตระกูลเดียวกันแล้ว
+- ❌ **แตะ memory file ที่ทีม track อยู่** (แม้มี `--force`) — memory ส่วนตัวไปที่ `.ai/context/MEMORY.md`
 - ❌ **แก้ path ใน `.claude/commands/` เก่าแทนการลบ** — project-level ชนะ global จะกลายเป็นชุดที่สอง
 - ❌ **Generate spec ย้อนหลังทั้ง repo อัตโนมัติ**
 - ❌ **Copy shared context ลง repo** — repo อ้าง path ไปหา `<project>/.ai/context/`

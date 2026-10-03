@@ -39,7 +39,7 @@ Mode: normal | quick
 ### Step 1: Read Context
 
 **Required:**
-- project memory file ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตัวที่มี) — domain, stack, rules
+- project memory file ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตัวที่มี) — domain, stack, rules + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
 - `.ai/context/ARCHITECTURE.md` — patterns, anti-patterns, security rules
 
 **Conditional:**

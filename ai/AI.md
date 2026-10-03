@@ -22,6 +22,8 @@ repo เดี่ยว (ไม่อยู่ใน multi-repo project) มี�
 - ZCode → `AGENTS.md` (หรือ `.zcode/AGENTS.md` / `.agents/AGENTS.md`)
 
 > ถ้า repo มีไฟล์ใดไฟล์หนึ่งใน 3 ตัวนี้ ให้ถือว่าเป็น project memory เดียวกัน — อ่านตัวที่มี
+> **`.ai/context/MEMORY.md`** (ถ้ามี) = memory ส่วนตัวของเครื่องนี้ ใช้เมื่อทีม track memory file ไว้แล้ว (ไฟล์ของทีมห้ามแตะ)
+> อ่าน**ต่อจาก** memory file ของทีมเสมอ — ขัดกัน → ของทีมชนะ แล้ว flag ให้ dev รู้
 > ถ้า repo ยังไม่มี `.ai/` เลย → เสนอให้ dev รัน `/ai-init`
 
 ---
@@ -30,9 +32,10 @@ repo เดี่ยว (ไม่อยู่ใน multi-repo project) มี�
 
 ```
 <repo>/
-├── CLAUDE.md | AGENTS.md | GEMINI.md   # project memory (root, assistant โหลดเอง)
+├── CLAUDE.md | AGENTS.md | GEMINI.md   # project memory (root, assistant โหลดเอง) — ถ้าทีม track ไว้: read-only
 └── .ai/
     └── context/
+        ├── MEMORY.md         # (optional) memory ส่วนตัว — เฉพาะเมื่อทีม track memory file ไว้แล้ว
         ├── ARCHITECTURE.md   # ADR, patterns, anti-patterns
         ├── features.md       # derived index — regen ด้วย /reindex เท่านั้น
         ├── untracked.md      # shared infra ที่ไม่นับเป็น feature
@@ -166,6 +169,8 @@ Weekly check:  /sync → /reindex
 | `specs/TASK-*.md` (Status / Implementation Status / Changelog / Gotchas) | `/build`, `/change`, `/sync --fix` | `/status` |
 | `features.md` | `/reindex` เท่านั้น | ทุก command อื่น |
 | `ARCHITECTURE.md` | dev (AI เสนอได้ ต้อง confirm) | — |
+| memory file ที่ track อยู่ใน git (ของทีม) | dev / ทีมเท่านั้น — AI เสนอ diff ได้ | **ทุก command** รวม `/ai-init --force` |
+| `.ai/context/MEMORY.md` | `/ai-init`, dev | — |
 | `<project>/.ai/context/{PROJECT,ARCHITECTURE,conventions,integrations}.md` (shared) | `/ai-init` (ครั้งแรก), dev — command อื่นเสนอ diff ได้ ต้อง dev confirm ก่อนเขียน | `/status`, `/reindex` |
 | `<project>/.ai/context/specs/`, `features.md` | กติกาเดียวกับ `specs/` + `features.md` ของ repo (ด้านบน) | — |
 | source code | `/build`, `/change` | `/spec`, `/status`, `/reindex`, `/sync` (ยกเว้น `--fix` ที่แก้ doc) |
@@ -184,7 +189,7 @@ Weekly check:  /sync → /reindex
 
 ### 2. อ่าน context ก่อนเขียน code เสมอ
 
-ลำดับ: shared project context (ถ้ามี — ดู Context Resolution) → project memory (root) → `.ai/context/ARCHITECTURE.md` → spec file → module rule (ถ้ามี) → code จริง
+ลำดับ: shared project context (ถ้ามี — ดู Context Resolution) → project memory (root) → `.ai/context/MEMORY.md` (ถ้ามี) → `.ai/context/ARCHITECTURE.md` → spec file → module rule (ถ้ามี) → code จริง
 
 ### 3. Follow existing pattern
 

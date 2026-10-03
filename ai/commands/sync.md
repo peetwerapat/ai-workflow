@@ -13,7 +13,7 @@ argument-hint: [--fix]
 
 ## Context Files
 
-- project memory file ที่ root
+- project memory file ที่ root + `.ai/context/MEMORY.md` (ถ้ามี — ของทีมชนะเมื่อขัดกัน)
 - `.ai/context/features.md` (overview เท่านั้น — ไม่ใช่แหล่ง detect)
 - `.ai/context/untracked.md` (whitelist)
 
