@@ -393,6 +393,26 @@ Contract Changes that affect `integrations.md` → show the proposed diff in the
 - changes after build → use `/change {task-id} "..."`
 ```
 
+**Cross-repo spec** → replace `### Next Steps` above with ready-to-copy commands, one session per repo, in build order:
+
+```
+### Next Steps (cross-repo — one session per repo, in build order)
+1. Review spec: `{project}/.ai/context/specs/{task-id}.md`
+2. Build each repo in a **fresh session** (only that repo's context + spec loaded, no history from other repos):
+   cd {project}/{repo-1} && /build {task-id} --repo {repo-1}
+   cd {project}/{repo-2} && /build {task-id} --repo {repo-2}
+   ...
+   (start {repo-N} only after {repo-N-1} is ✅ — it depends on that contract)
+3. `cd {project} && /reindex` after the last repo
+
+Alternative: `cd {project} && /build {task-id}` builds every repo in one session —
+fine for small changes (few files per repo); for larger ones history from earlier repos stays in context and costs more tokens.
+```
+
+- Use the assistant's real invocation syntax (`$build` for Codex, `/build` for Claude / ZCode)
+- Repos with no dependency between them (no shared Contract Changes) → mark them as runnable in parallel sessions
+- Recommend the one-session alternative instead only when Proposed Design is small (a few files per repo)
+
 ---
 
 ## Rules
