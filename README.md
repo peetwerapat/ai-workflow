@@ -7,7 +7,8 @@ ai/                      ← source of truth ชุดเดียว
 ├── AI.md                  rule กลาง (workflow, status vocabulary, critical rules)
 ├── commands/              /ai-init /spec /build /change /status /reindex /sync
 ├── agents/                spec-analyzer, impact-analyzer
-└── templates/             โครงไฟล์สำหรับ /ai-init ไป scaffold ใน repo ใหม่
+└── templates/             โครงไฟล์ระดับ repo สำหรับ /ai-init
+    └── project/           โครงไฟล์ shared context ของ multi-repo project
 ```
 
 ## ติดตั้ง
@@ -107,6 +108,7 @@ Codex/Antigravity มี shell wrapper (`codex()` / `agy()`) ที่ `install.
 
 ```
 repo ใหม่:     /ai-init                       scaffold .ai/ + project memory จากการอ่าน code จริง
+หลาย repo:     /ai-init --project             (ที่ root ของ project) shared context + .ai/ ของทุก repo ข้างใน
 feature ใหม่:  /spec <requirement> → /build   → /reindex
 แก้ของเดิม:    /change <task-id> "<desc>"     → /reindex
 ดูภาพรวม:      /status | /status mine | /status <task-id>
@@ -122,6 +124,7 @@ feature ใหม่:  /spec <requirement> → /build   → /reindex
 | ชั้น | ที่อยู่ | เนื้อหา |
 |---|---|---|
 | **Global** | `~/.ai/AI.md` | workflow, status vocabulary, critical rules ที่ใช้ได้ทุก project |
+| **Project shared** (optional) | `<project>/.ai/context/` | ภาพรวมระบบ, domain ร่วม, convention ร่วม, contract ระหว่าง repo |
 | **Project** | `.ai/context/` + memory file ที่ root ของ repo | domain, stack, architecture, specs |
 
 ```
@@ -138,6 +141,62 @@ feature ใหม่:  /spec <requirement> → /build   → /reindex
 
 **`.ai/` ใช้ร่วมกันทุก assistant** — ไม่แตกเป็น `.claude/context/`, `.codex/context/` แยกกัน spec จึงไม่มีวัน drift ระหว่าง tool
 repo ที่ยังใช้ layout เก่าอยู่ → `/ai-init` จะเสนอ migrate ให้
+
+### Multi-repo project
+
+project ที่มีหลาย git repo (กี่ตัวก็ได้ ชื่ออะไรก็ได้) แชร์ context ระดับ project ร่วมกันได้ — ไม่ copy ซ้ำลงทุก repo
+
+```
+project/                      ไม่ต้องเป็น git repo
+├── CLAUDE.md                 สั้นๆ ชี้ไป .ai/context/PROJECT.md (ใช้ตอนเปิด session ที่ root ทำงานข้าม repo)
+├── .ai/context/              shared: PROJECT.md, ARCHITECTURE.md, conventions.md, integrations.md
+│                             + specs/ features.md ของ cross-repo task
+├── web/.ai/context/          เฉพาะ web: ARCHITECTURE.md, features.md, untracked.md, specs/
+├── api/.ai/context/          เฉพาะ api
+└── docs/                     ไม่ใช่ git repo → ข้าม
+```
+
+```
+cd ~/dev/project && /ai-init            detect เองว่าเป็นระดับ project (หรือ /ai-init --project)
+cd ~/dev/project/api && /ai-init        ระดับ repo — เจอ shared ด้านบนแล้วอ้างถึง ไม่ copy (หรือ /ai-init --repo)
+```
+
+- **ระดับ project**: detect repo จากลูกตรงที่มี `.git` ของตัวเอง → ให้เลือก repo → เขียน shared → init ทีละ repo
+  repo ที่มี `.ai/` แล้วจะข้าม (ยกเว้น `--force`) และสรุป Installed / Skipped / Failed ตอนจบ
+- **Agent โหลด context ยังไง** (`ai/AI.md` › Context Resolution): ไล่ขึ้นจาก root ของ repo หา `.ai/context/PROJECT.md`
+  → อ่าน shared + `.ai/` ของ **repo ที่ task แตะเท่านั้น** — ทำงานใน `api/` ไม่ต้องโหลด context ของ web/worker
+- repo เดี่ยวที่ไม่อยู่ใน project ใดๆ → ทำงานเหมือนเดิมทุกอย่าง
+
+#### Task ที่แตะหลาย repo (2, 3, ... N)
+
+```
+cd ~/dev/project
+/spec ให้ user แนบไฟล์ใน comment ได้        → ตรวจว่าแตะ api, worker, web → cross-repo spec ไฟล์เดียว
+/build TASK-20261003-1400                   → build ทีละ repo ตาม build order (api → worker → web)
+/build TASK-20261003-1400 --repo web        → หรือทำทีละ repo จาก session แยก
+/reindex                                    → features.md ของ project + section "Cross-repo" ใน repo ที่เกี่ยว
+```
+
+```markdown
+# TASK-20261003-1400 — Comment attachments
+**Scope**: cross-repo
+**Repos**: api, worker, web          ← build order: provider ก่อน consumer
+**Status**: 🚧 In Progress           ← overall คำนวณจากทุก repo
+
+## Business Rules                    ← เขียนครั้งเดียว ไม่ซ้ำในแต่ละ repo
+## Contract Changes                  ← api → worker, web
+## Proposed Design                   ← ### api / ### worker / ### web
+## Implementation Status
+| Repo   | Status | Files | Tests |
+| api    | ✅ | api/src/... | 14/14 |
+| worker | 🚧 | ... | |
+| web    | 📋 | — | — |
+```
+
+- spec อยู่ที่ `project/.ai/context/specs/` — `/build`, `/change`, `/status` ใน repo หาเจอเองจาก task-id
+- เปิด session ที่ `project/` ตอน build หลาย repo (Codex sandbox เขียนได้เฉพาะ directory ที่เปิด)
+- repo ก่อนหน้า test fail → ไม่ build repo ที่พึ่ง contract ของมัน
+- commit แยกต่อ repo (คนละ git repo) ใส่ `Task: TASK-...` เดียวกันเพื่อ trace
 
 ## ให้คนอื่นในทีมใช้ด้วย
 

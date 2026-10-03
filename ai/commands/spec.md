@@ -11,11 +11,16 @@ argument-hint: <requirement> [--quick]
 ## Context Files
 
 อ่านก่อนเริ่มเสมอ:
+- shared project context (ถ้ามี — ดู `~/.ai/AI.md` › Context Resolution): `PROJECT.md` + ไฟล์ใน context map ที่เกี่ยวกับ task
+  - แตะ contract ใน `integrations.md` → flag repo ฝั่ง consumer ใน risk + เสนออัปเดต shared (ห้ามแก้เอง)
 - project memory file ที่ root (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` ตัวที่มี)
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/features.md` (overview เท่านั้น)
 
 **ถ้าไม่มี `.ai/context/`** → แจ้ง dev ให้รัน `/ai-init` ก่อน แล้ว **หยุด**
+
+**รันที่ root ของ project** (multi-repo, cwd ไม่ใช่ git repo): อ่าน shared context แทน memory file ของ repo
+แล้วอ่าน memory file + `ARCHITECTURE.md` ของ **repo ที่ requirement แตะเท่านั้น** (หลัง Step 0)
 
 ## Input
 
@@ -47,6 +52,30 @@ date "+%Y-%m-%d %H:%M"
 
 ---
 
+## Step 0: Identify Scope (เฉพาะเมื่ออยู่ใน multi-repo project)
+
+ไม่มี shared context (repo เดี่ยว) → ข้ามไป Step 1 (behavior เดิม)
+
+จาก requirement + `PROJECT.md` (repo list) + `integrations.md` (contract) → หาว่าแตะ repo ไหนบ้าง:
+
+| แตะ | Scope | spec อยู่ที่ |
+|---|---|---|
+| 1 repo | **repo** | `<repo>/.ai/context/specs/` (ถ้ารันที่ root ของ project → บอก dev ว่าจะเขียนลง repo ไหน) |
+| ≥ 2 repo (กี่ตัวก็ได้) | **cross-repo** | `<project>/.ai/context/specs/` |
+
+cross-repo → เสนอ repo list + **build order** (provider ก่อน consumer ตาม `integrations.md`) ให้ dev confirm:
+```
+Requirement นี้แตะ {N} repo:
+  1. api     — provider: เพิ่ม endpoint
+  2. worker  — consume event จาก api
+  3. web     — เรียก endpoint ใหม่
+A) cross-repo spec ไฟล์เดียว ตาม build order นี้ (แนะนำ)
+B) แก้ list / order: ...
+```
+❌ ห้ามเดา repo ที่ไม่มีหลักฐานว่าเกี่ยว — ไม่แน่ใจให้ถาม
+
+---
+
 ## Step 1: Identify Module
 
 จาก requirement เดาว่า feature นี้อยู่ใน module/area ใด:
@@ -74,13 +103,14 @@ date "+%Y-%m-%d %H:%M"
 - Target module
 - Context files ที่ relevant (`ARCHITECTURE.md`, module rule file ถ้ามี)
 - Mode: `normal` | `quick`
+- Scope: `repo` | `cross-repo` + Repos (build order) + path ของ shared context
 
 **Expect output:**
 - Business rules (เขียนเป็น "ระบบต้องทำ X เมื่อ Y")
 - Risks (security, data integrity, performance, breaking change, multi-tenant)
 - Edge cases (validation, state, query, error, empty state)
 - Dependencies (module อื่น, external lib/service)
-- Proposed design (files, API shape, data model)
+- Proposed design (files, API shape, data model) — cross-repo: **แยกต่อ repo** + contract changes ระหว่าง repo
 - Ambiguity questions (ไม่เกิน 3 ข้อ ที่สำคัญจริง)
 - Confidence assessment
 
@@ -174,6 +204,7 @@ Format: `TASK-YYYYMMDD-HHMM` เช่น `TASK-20260501-1430`
 **Generate ตอนนี้เท่านั้น** — ไม่ใช่ตอนเริ่ม command
 
 ถ้าไฟล์ชื่อนี้มีอยู่แล้ว (collision) → เติม suffix `-B`, `-C` ห้าม overwrite
+ใน multi-repo project เช็ค collision ทั้ง `<project>/.ai/context/specs/` และ `specs/` ของทุก repo (task-id ต้อง unique ทั้ง project)
 
 ---
 
@@ -287,6 +318,51 @@ _(None yet — will be populated during /build)_
 
 ---
 
+### Cross-repo spec
+
+สร้างที่ `<project>/.ai/context/specs/{task-id}.md` — โครงเดียวกับด้านบน ต่างกันเฉพาะ:
+
+```markdown
+# {Task ID} — {Feature Name}
+
+**Scope**: cross-repo
+**Repos**: {repo-1}, {repo-2}, ..., {repo-N}   ← build order
+**Module**: {feature area}
+**Status**: 📋 Planned   ← overall (คำนวณจาก Implementation Status — ดู AI.md › Cross-repo Task)
+...
+
+## Business Rules          ← เขียนครั้งเดียว ใช้ร่วมทุก repo
+
+## Contract Changes        ← สิ่งที่ repo หนึ่งให้อีก repo ใช้
+
+| Provider | Consumer(s) | ช่องทาง | Contract | Breaking? |
+|---|---|---|---|---|
+| `{repo}` | `{repo}`, `{repo}` | {REST / event / ...} | {shape / path ของ schema} | yes / no |
+
+## Proposed Design
+
+### {repo-1}
+**Create:** / **Modify:** — path ขึ้นต้นด้วยชื่อ repo (`{repo-1}/src/...`)
+
+### {repo-2}
+...
+
+## Implementation Status
+
+| Repo | Status | Files | Tests |
+|---|---|---|---|
+| {repo-1} | 📋 | — | — |
+| {repo-2} | 📋 | — | — |
+
+## Changelog
+
+- **{YYYY-MM-DD}** ADDED [{repo-1}, {repo-2}, ...] — Initial spec
+```
+
+Contract Changes ที่กระทบ `integrations.md` → แสดง diff ที่เสนอใน Final Report (dev confirm ก่อนเขียน — ดู Ownership ใน AI.md)
+
+---
+
 ## Step 7: Final Report
 
 ```
@@ -334,6 +410,8 @@ _(None yet — will be populated during /build)_
 ### Edge Cases
 
 - **Requirement คลุมหลาย module**: ถามว่าควรแยกเป็น 2 spec หรือไม่
+- **Requirement คลุมหลาย repo**: cross-repo spec ไฟล์เดียว (Step 0) — ❌ ห้ามแตกเป็น spec ซ้ำในแต่ละ repo
+- **Repo ไม่มี `.ai/`**: ยังสร้าง cross-repo spec ได้ แต่แนะนำ `cd <repo> && /ai-init` ก่อน `/build`
 - **Requirement ซ้ำกับ feature เดิม**: flag + ถาม — อาจต้องใช้ `/change` ไม่ใช่ `/spec`
 - **Requirement เป็นแค่ idea**: ขอ clarify ก่อน ถ้ายัง vague เกิน → แนะนำให้ refine ก่อน
 

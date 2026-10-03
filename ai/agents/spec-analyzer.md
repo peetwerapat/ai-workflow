@@ -43,6 +43,8 @@ Mode: normal | quick
 - `.ai/context/ARCHITECTURE.md` — patterns, anti-patterns, security rules
 
 **Conditional:**
+- shared project context (ถ้ามี — ไล่ขึ้นจาก repo root หา `.ai/context/PROJECT.md`): `PROJECT.md` + `integrations.md` ถ้า requirement แตะ repo อื่น
+- **Scope cross-repo** → memory file + `ARCHITECTURE.md` ของทุก repo ใน Repos (เท่านั้น) / output ต้องมี: design **แยกต่อ repo**, Contract Changes (provider → consumers), build order + เหตุผล, risk ของ contract (breaking / deploy order)
 - module rule file ของ target module (ถ้ามี)
 - `.ai/context/features.md` — feature ใกล้เคียงใน module เดียวกัน (reference pattern)
 
