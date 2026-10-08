@@ -1,7 +1,7 @@
 {
   "spec-analyzer": {
     "claude": {"model": "sonnet", "effort": "medium"},
-    "codex": {"model": "gpt-6-luna", "effort": "xhigh"},
+    "codex": {"model": "gpt-6-luna", "effort": "max"},
     "antigravity": {"model": "pro"},
     "zcode": {"model": "inherit"}
   },
