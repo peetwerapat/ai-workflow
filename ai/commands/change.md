@@ -1,5 +1,5 @@
 ---
-description: Modify an existing feature — bug fix / requirement change / refactor with impact analysis
+description: Run the recorded change workflow with impact analysis when the dev explicitly invokes /change or asks for an audit trail; ordinary coding requests proceed directly
 argument-hint: <task-id> "<description>" [--quick | --dry-run | --cancel <reason> | --deprecate <reason>]
 ---
 
