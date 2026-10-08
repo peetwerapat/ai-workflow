@@ -1,5 +1,5 @@
 ---
-description: Turn a requirement into a spec + risk analysis + record it as a new feature
+description: Create a recorded feature spec and risk analysis when the dev explicitly invokes /spec or asks for a spec; ordinary coding requests proceed directly
 argument-hint: <requirement> [--quick]
 ---
 

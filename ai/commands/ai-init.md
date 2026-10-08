@@ -1,5 +1,5 @@
 ---
-description: Scaffold .ai/ context + project memory file — repo level (single repo) or project level (shared context + every repo inside) — analyzes the real codebase before writing
+description: Scaffold .ai/ context and project memory only when the dev explicitly invokes /ai-init or asks to initialize project context; a missing .ai/ does not trigger this skill
 argument-hint: [--project | --repo] [--lang en|th] [--force]
 ---
 

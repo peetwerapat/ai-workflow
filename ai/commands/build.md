@@ -1,5 +1,5 @@
 ---
-description: Implement a feature per its spec with tests — supports incremental mode and resume
+description: Implement an existing recorded spec when the dev explicitly invokes /build or asks to build a task ID; ordinary coding requests do not require a spec
 argument-hint: [task-id] [--repo <name>] [--incremental | --no-test | --resume]
 ---
 

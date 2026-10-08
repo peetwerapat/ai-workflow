@@ -1,7 +1,7 @@
 # AI Working Agreement (Global)
 
 The **shared rules** for every project and every assistant (Claude Code / Codex CLI / Antigravity CLI / ZCode).
-Each project has its own context in `.ai/` — always read every layer that exists.
+Projects may have context in `.ai/` — always read every layer that exists.
 
 > **Language**: always talk to the dev in **Thai** (technical terms may stay English). These instruction files are English only to save tokens — see [Output Language](#output-language).
 
@@ -26,7 +26,7 @@ A standalone repo (not in a multi-repo project) has only Global + Repository, as
 > Any of the 3 files in a repo counts as the same project memory — read whichever exists.
 > **`.ai/context/MEMORY.md`** (if present) = this machine's personal memory, used when the team already tracks the memory file (team files are off-limits).
 > Always read it **after** the team memory file — on conflict the team file wins; flag it to the dev.
-> Repo has no `.ai/` yet → suggest the dev runs `/ai-init`.
+> Repo has no `.ai/` yet → suggest `/ai-init` after handling the current request. Do not run it automatically or block a direct coding request.
 
 ---
 
@@ -102,19 +102,19 @@ To share with the team: the dev removes those lines from `.git/info/exclude` and
 
 ## Development Workflow
 
-Use these slash commands — do not skip steps.
+Use these slash commands when the dev invokes one or explicitly asks for its spec-driven workflow. A natural-language request to add or change code is a direct coding request: inspect available context and code, implement, test, and report. Do not infer `/spec`, `/build`, `/change`, or `/ai-init` merely from the kind of work requested.
 
 | Command | Use when |
 |---|---|
-| `/ai-init [--project\|--repo] [--lang en\|th]` | new repo / multi-repo project without `.ai/` → scaffold context + project memory |
-| `/spec <requirement>` | new requirement → analyze + save spec |
-| `/build [task-id]` | implement per spec + write tests |
-| `/change <task-id> "<desc>"` | modify an existing feature (bug / requirement change / refactor) |
+| `/ai-init [--project\|--repo] [--lang en\|th]` | explicitly requested initialization → scaffold context + project memory |
+| `/spec <requirement>` | explicitly requested spec → analyze + save spec |
+| `/build [task-id]` | explicitly requested build of a recorded spec + tests |
+| `/change <task-id> "<desc>"` | explicitly requested recorded change with impact analysis |
 | `/status [filter]` | feature overview |
 | `/reindex [--force]` | regenerate `features.md` from `specs/` + auto-close terminal tasks |
 | `/sync [--fix]` | detect drift between specs ↔ real code |
 
-### Standard Flows
+### Spec-driven Flows (when requested)
 
 ```
 New repo:      /ai-init → /spec
@@ -126,6 +126,8 @@ Urgent bug:    /change <task-id> "bug: <desc>"
 Daily start:   /status mine
 Weekly check:  /sync → /reindex
 ```
+
+Direct coding request: read available context → inspect code → implement → test → report.
 
 ### Flags
 
@@ -175,7 +177,7 @@ One set for every project, in spec files and `features.md`.
 | `.ai/context/MEMORY.md` | `/ai-init`, dev | — |
 | `<project>/.ai/context/{PROJECT,ARCHITECTURE,conventions,integrations}.md` (shared) | `/ai-init` (first time), dev — other commands may propose a diff; dev must confirm before writing | `/status`, `/reindex` |
 | `<project>/.ai/context/specs/`, `features.md` | same rules as the repo's `specs/` + `features.md` (above) | — |
-| source code | `/build`, `/change` | `/spec`, `/status`, `/reindex`, `/sync` (except `--fix`, which edits docs) |
+| source code | `/build`, `/change`, direct coding request | `/spec`, `/status`, `/reindex`, `/sync` (except `--fix`, which edits docs) |
 
 > `features.md` is a **derived view**, not a source of truth — the source of truth is `specs/`.
 
@@ -183,15 +185,16 @@ One set for every project, in spec files and `features.md`.
 
 ## Critical Rules (every project)
 
-### 1. No spec = no implementation
+### 1. Let the dev choose the workflow
 
-- New features always go through `/spec` first
-- Dev asks to change a business rule directly → recommend `/change` for an audit trail
-- Trivial work (typo, log message, formatting) → just do it, no spec
+- Explicit `/spec`, `/build`, `/change`, or a request for a spec/audit trail → follow that command's workflow and prerequisites.
+- Natural-language requests to add, fix, or change code → implement directly without first creating a spec, running `/ai-init`, or asking for workflow confirmation. Read available context, follow existing patterns, and test the change.
+- If an existing spec conflicts with a direct request, follow the dev's latest instruction and report the spec drift for review. Do not silently edit a spec outside `/spec` or `/change`.
+- Ask only for missing business decisions or necessary approval; a missing `.ai/` or spec is not by itself a reason to stop direct work.
 
 ### 2. Always read context before writing code
 
-Order: shared project context (if any — see Context Resolution) → project memory (root) → `.ai/context/MEMORY.md` (if any) → `.ai/context/ARCHITECTURE.md` → spec file → module rule (if any) → real code
+Order: shared project context (if any — see Context Resolution) → project memory (root, if any) → `.ai/context/MEMORY.md` (if any) → `.ai/context/ARCHITECTURE.md` (if any) → relevant existing spec (if any) → module rule (if any) → real code
 
 ### 3. Follow existing patterns
 
@@ -233,7 +236,7 @@ Order: shared project context (if any — see Context Resolution) → project me
 
 ## Subagents
 
-`/spec` and `/change` delegate analysis to a separate agent to save main context.
+When explicitly used, `/spec` and `/change` delegate analysis to a separate agent to save main context. A direct coding request does not automatically invoke these workflows or their analyzers.
 
 | Agent | Used by | Job |
 |---|---|---|

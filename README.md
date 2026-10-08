@@ -1,6 +1,6 @@
 # ai-agent — ชุด AI กลางสำหรับทุก project
 
-Workflow `/spec → /build → /change` ชุดเดียว เขียนครั้งเดียว ใช้ได้กับ **Claude Code**, **Codex CLI**, **Antigravity CLI (`agy`)** และ **ZCode** ในทุก repo
+ชุด workflow `/spec → /build → /change` สำหรับงานที่ต้องการ spec และ audit trail ใช้ร่วมกันได้กับ **Claude Code**, **Codex CLI**, **Antigravity CLI (`agy`)** และ **ZCode** ในทุก repo คำขอแก้โค้ดด้วยภาษาปกติให้ลงมือทำได้ทันที
 
 ```
 ai/                      ← source of truth ชุดเดียว
@@ -124,6 +124,8 @@ Codex/Antigravity มี shell wrapper (`codex()` / `agy()`) ที่ `install.
 `~/.ai` เป็น symlink ไปที่ `~/.ai-agent/ai/` ทำให้ทุก assistant อ้าง path เดียวกันได้ (`~/.ai/agents/spec-analyzer.md`)
 
 ## ใช้งาน
+
+พิมพ์คำขอปกติ เช่น “เพิ่ม usage ใต้ชื่อ model” → assistant อ่าน context ที่มีอยู่ ตรวจโค้ด แก้ ทดสอบ และรายงาน โดยไม่สร้าง spec หรือรัน `/ai-init` เอง แม้ repo ยังไม่มี `.ai/` ก็ตาม ใช้คำสั่งด้านล่างเมื่ออยากได้ workflow ที่บันทึก spec และประวัติการเปลี่ยนแปลง
 
 ```
 repo ใหม่:     /ai-init                       scaffold .ai/ + project memory จากการอ่าน code จริง
