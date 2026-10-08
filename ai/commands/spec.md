@@ -98,7 +98,7 @@ Examples:
 
 ## Step 2: Delegate to spec-analyzer
 
-Send to the `spec-analyzer` agent for analysis
+Send to the installed `spec-analyzer` agent for analysis. Use its provider-specific model and effort from `~/.ai/agents/models.json`; do not override them at invocation unless the dev asks.
 
 **Input:**
 - Requirement text (raw, as the dev typed it)
@@ -116,7 +116,7 @@ Send to the `spec-analyzer` agent for analysis
 - Ambiguity questions (max 3, only truly important ones)
 - Confidence assessment
 
-**If the runtime does not support subagents** → read `~/.ai/agents/spec-analyzer.md` and follow that process yourself
+**If the runtime does not support subagents** → read `~/.ai/agents/spec-analyzer.md` and follow that process yourself. Report that the configured subagent model and effort were not used.
 Output must be in the same format
 
 > delegate = analyze in a separate context → saves main context
