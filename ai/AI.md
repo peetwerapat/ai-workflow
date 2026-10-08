@@ -240,8 +240,9 @@ Order: shared project context (if any — see Context Resolution) → project me
 | `spec-analyzer` | `/spec` | requirement → business rules / risks / edge cases / design |
 | `impact-analyzer` | `/change` | change request → conflict check / dependency trace / risk / approach |
 
-**Runtime supports subagents** (e.g. Claude Code: Task tool) → delegate
-**Not supported** (e.g. Codex CLI) → read `~/.ai/agents/{agent}.md` and follow it yourself in one focused pass
+Provider-specific model and effort settings live in `~/.ai/agents/models.json`. The installer renders native subagent definitions for Claude Code, Codex CLI, Antigravity CLI, and ZCode. Invoke the installed agent by name when the runtime exposes it. Do not override its model or effort at invocation unless the dev asks.
+**Runtime supports subagents** → delegate to the installed agent.
+**Runtime has no subagent tool** → read `~/.ai/agents/{agent}.md` and follow it yourself in one focused pass; the agent-specific model and effort cannot take effect in this fallback.
 Both paths must produce the same result.
 
 ---

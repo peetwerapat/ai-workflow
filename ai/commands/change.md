@@ -148,6 +148,8 @@ B) Override (FIXED / CHANGED / REFACTORED)
 
 ### Normal → Delegate to impact-analyzer
 
+Use the installed agent's provider-specific model and effort from `~/.ai/agents/models.json`; do not override them at invocation unless the dev asks.
+
 **Input:**
 ```
 Task ID: {task-id}
@@ -165,7 +167,7 @@ Change type (detected): {FIXED | CHANGED | REFACTORED}
 - Proposed approach (1-2 options if there is a trade-off)
 - Confidence assessment
 
-**If the runtime does not support subagents** → read `~/.ai/agents/impact-analyzer.md` and follow that process yourself
+**If the runtime does not support subagents** → read `~/.ai/agents/impact-analyzer.md` and follow that process yourself. Report that the configured subagent model and effort were not used.
 
 ---
 

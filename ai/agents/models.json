@@ -1,0 +1,14 @@
+{
+  "spec-analyzer": {
+    "claude": {"model": "sonnet", "effort": "medium"},
+    "codex": {"model": "gpt-6-luna", "effort": "xhigh"},
+    "antigravity": {"model": "pro"},
+    "zcode": {"model": "inherit"}
+  },
+  "impact-analyzer": {
+    "claude": {"model": "sonnet", "effort": "medium"},
+    "codex": {"model": "gpt-6.1-sol", "effort": "medium"},
+    "antigravity": {"model": "pro"},
+    "zcode": {"model": "inherit"}
+  }
+}
