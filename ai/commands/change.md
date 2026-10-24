@@ -1,6 +1,6 @@
 ---
 description: Run the recorded change workflow with impact analysis when the dev explicitly invokes /change or asks for an audit trail; ordinary coding requests proceed directly
-argument-hint: <task-id> "<description>" [--quick | --dry-run | --cancel <reason> | --deprecate <reason>]
+argument-hint: <task-id> "<description>" [--quick | --dry-run | --cancel <reason> | --deprecate <reason>] [--validation flow|tests]
 ---
 
 # /change — Modify Existing Feature
@@ -13,6 +13,8 @@ Modify an existing feature — covers 3 use cases in one command:
 - **Refactor** — internal change, behavior unchanged
 
 AI classifies the type automatically from the description.
+
+For execution, use `~/.ai/workflows/implementation.md` for helper routing, practical flow validation (default), completeness, and feedback. Preserve the impact-analysis and concrete-plan approval steps of this recorded workflow.
 
 ## Context Files
 
@@ -44,6 +46,8 @@ Format: `<task-id> "<description>" [flags]`
   - `--dry-run` — show impact analysis only, no real edits
   - `--cancel <reason>` — Status → ❌, Changelog `CANCELLED`
   - `--deprecate <reason>` — Status → 📦, Changelog `DEPRECATED`
+  - `--validation flow|tests` — practical flow (default) or relevant automated tests
+  - `--no-test` — skip automated tests; practical flow checks still apply
 
 **Missing args** → show the correct format + stop
 
@@ -86,8 +90,7 @@ Try in order:
 
 ### 2.2 Reopen check (if it is a CLOSED file)
 
-Rename back to active first: `git mv CLOSED-TASK-{id}.md TASK-{id}.md`
-(the next `/reindex` will append the `REOPENED` Changelog entry)
+After approval of the concrete change plan, rename back to active using `mv` (do not stage context files). Append `REOPENED` to Changelog in this command, preserving prior entries. `/reindex` never edits spec content. Do not rename during analysis, a rejected plan, or `--dry-run`.
 
 ### 2.3 Check Status
 
@@ -214,8 +217,9 @@ Type "confirm: <reason>" to continue / "cancel" to stop
 ### 🔗 Indirect Impact
 {cross-module impact or "Isolated — no impact on other modules"}
 
-### 🧪 Affected Tests
-- `{test file}` — test "{name}" (may need edits)
+### Validation Plan
+- Practical flow: {trigger, environment, expected result}
+- Existing checks: {relevant command when selected/required, or not selected}
 
 ### 💡 Approach
 {single approach, if clear}
@@ -227,7 +231,7 @@ Choose A or B?
 
 ### ⚠️ Pre-execution Checklist
 - [ ] Risk level understood
-- [ ] Test coverage exists for the files to be edited
+- [ ] Practical flow and validation limits identified; mandatory team checks accounted for
 - [ ] Breaking change has a migration path (if any)
 
 Type "confirm" to execute / "cancel" to stop
@@ -252,56 +256,25 @@ no R → R01
 ```
 Format: `{task-id}-R{NN}` (2 digits, zero-padded)
 
-### 7.1b Test Readiness + Budgets
+### 7.1b Validation Readiness + Budgets
 
-Same rules as `/build` (read `~/.ai/commands/build.md` › 1.6, 5.5, Command Output Budget if not loaded):
-- **Test readiness**: the repo cannot test the kind of code being changed (no runner / missing library) → stop and ask:
-  A) apply the change without tests → status ⚠️, Changelog notes it (recommended) · B) set up test infra first (new dependencies, more work) · C) stop
-  ❌ never install test dependencies as a side effect of a change
-- **Fix-loop budget**: 3 attempts per failure **and** at most 8 fix → rerun cycles in total per repo → then stop, status 🚧, report
-- **Command output**: scoped runs, summary reporters / `2>&1 | tail -n 80`, rerun only the failing test, full-project check once at the end — never dump full logs
+Use `~/.ai/workflows/implementation.md` and /build Steps 1.6 and 5. Default to a focused real flow. Missing test infrastructure does not block authorized implementation; new dependencies still need approval. Preserve required team checks. Limit attempts to three for one failure and eight fix/rerun cycles per repo, with scoped output.
 
-### 7.2 Edit Files One-by-One
+### 7.2 Implement coherent changes
 
-**Never edit multiple files at once**
+Read affected files and preserve unrelated edits. Apply the smallest coherent set of edits that fixes the cause or implements the approved rule, including callers/wiring. Do not run tests after every individual file or auto-revert edits after a failure. Use codebase-explorer only for an unresolved navigation question; use debugger when the cause is unclear or a first correction fails.
 
-```
-For each file:
-  1. Read current content
-  2. Apply change
-  3. Run related tests
-  4. fail → analyze + fix (max 3 attempts)
-  5. still failing → rollback this file + report to dev
-  6. next file
-```
+### 7.3 Validate by change type
 
-### 7.3 Test Strategy per Type
+- **FIXED**: exercise the previously failing input and an adjacent unaffected case. Add a regression test only when useful for recurrence or requested/required.
+- **CHANGED**: exercise the newly approved rule and inspect affected consumers. In tests mode, update relevant existing tests and add only meaningful missing coverage.
+- **REFACTORED**: preserve externally visible behavior and existing tests unchanged. Exercise the same before/after flow. When tests are run, existing tests must pass unchanged; do not disguise a behavior change as refactoring.
 
-**FIXED**
-- Write a regression test **before** the fix (TDD-ish) — must fail before, pass after
-- No existing test found → write a new one
+Use code-reviewer for behavior changes, multi-file work, or sensitive paths. Follow the shared completeness check before reporting completion. If the runtime is unavailable, report the exact unexercised flow rather than inventing success.
 
-**CHANGED**
-- Update existing tests to match the new spec
-- Add test cases arising from the new rule
+### 7.4 Handle failures
 
-**REFACTORED**
-- Existing tests must **pass unchanged** — do not edit tests
-- Tests break = not a refactor but a change → stop + confirm
-- Do not add new tests
-
-### 7.4 Handle Test Failures
-
-**FIXED / CHANGED**: attempt 1 → 2 → 3 then stop (leave edited files, mark 🚧)
-
-**REFACTORED**:
-```
-⚠️ Existing tests fail after refactor
-This may not be a true refactor — behavior changed
-
-A) Rollback (don't refactor here)
-B) Change type to CHANGED (update tests to the new behavior)
-```
+Inspect evidence; after an ineffective first correction use debugger before another speculative edit. Three attempts at the same failure → stop with 🚧 and report remaining work. A failed refactor check needs investigation, not edited expectations or automatic rollback. Ask for a business decision only if a proposed correction actually changes the agreed behavior. Never hide a failure by switching validation modes.
 
 ---
 
@@ -328,25 +301,28 @@ B) Change type to CHANGED (update tests to the new behavior)
 ```
 
 ### 8.4 Status
-Usually unchanged (stays ✅) except:
-- tests fail 3 attempts → 🚧
-- major change needing lots of re-testing → may downgrade to ⚠️
+Use current revision evidence: relevant automated checks passing and no observed failures → ✅; implemented without that automated evidence → ⚠️ with flow passed/not run recorded separately; unresolved demonstrated failure → 🚧. A previous revision's ✅ does not certify changed code.
 
 ---
 
 ## Step 9: Final Report
 
+For substantial work with existing `.ai/context/`, update the current task's HANDOFF.md checkpoint with actual changes, validation commands and covered code state, decisions, and remaining work. Preserve unrelated task notes. No context directory → report the checkpoint in the response. Inferred lessons are review proposals; only /learn persists confirmed lessons.
+
 ```
-## ✅ Change Complete: {revision-id}
+## {actual status icon} Change Result: {revision-id}
 
 **Type**: {TYPE} | **Description**: {description}
 
 ### Files Modified
 - `{path}` (+X / -Y lines)
 
-### Tests
-- Updated: X | Added: X (regression)
-- All passing ✅ | Some failing ⚠️
+### Validation
+- Mode: flow | tests
+- Steps/command: {actually exercised}
+- Expected / observed: {result or not run with reason}
+- Review: {findings resolved or limits}
+- Automated tests: {passed / failed / not run}
 
 ### Doc Updates
 - spec file: appended Changelog + updated Last Updated
@@ -377,11 +353,11 @@ Usually unchanged (stays ✅) except:
 - **Validate task-id before analyzing**
 - **Delegate impact analysis** — don't analyze yourself (unless the runtime doesn't support it)
 - **Stop on conflict** — wait for dev confirmation + reason
-- **Test after every file** — detect regressions early
+- **Validate the coherent change** using the selected practical flow and inspect completeness
 - **Record reason in Changelog** for FIXED and CHANGED
 
 ### Must Not
-- ❌ **Edit multiple files at once**
+- ❌ **Make unrelated edits or discard pre-existing work**
 - ❌ **Skip impact analysis** for auth / payment / money / multi-tenant / migration even with `--quick`
 - ❌ **Mark ✅ if tests fail**
 - ❌ **Edit tests in REFACTORED**

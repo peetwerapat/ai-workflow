@@ -122,6 +122,11 @@ Architecture decisions → [.ai/context/ARCHITECTURE.md](.ai/context/ARCHITECTUR
 
 Before changing a module → read that module's rule file first (if any)
 
+Context selection → `.ai/context/context-map.json` (actual source prefixes mapped to existing rule files).
+Use `python3 ~/.ai/tools/workflow.py context --root . --path <source-path>` for candidate paths.
+Resume substantial work from `.ai/context/HANDOFF.md` only after checking HEAD and current diff.
+Confirmed lessons → `.ai/context/LESSONS.md`; verify evidence and scope before reuse.
+
 ---
 
 ## Known Gaps

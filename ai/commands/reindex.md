@@ -1,254 +1,39 @@
 ---
-description: Regen features.md by scanning specs/ — auto-close terminal tasks (rename to CLOSED-), token-efficient
-argument-hint: [--force]
+description: Regenerate features.md deterministically from validated specs using the shared Python tool
+argument-hint: [--force | --dry-run]
 ---
 
 # /reindex — Regenerate Feature Index
 
-> **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
+Respond in **Thai**. Input: **$ARGUMENTS**.
 
-Scan `.ai/context/specs/` and regenerate the whole `.ai/context/features.md`
-
-- **Idempotent** — rerunnable, same result (if `specs/` is unchanged)
-- **Stateless** — `features.md` is the system's own memory, no separate state file
-- **Token-optimized** — skip `CLOSED-*.md` (use the existing entry in features.md as cache)
-- **Multi-repo aware** — see [Cross-repo Specs](#cross-repo-specs)
-
-## Context Files
-
-- `.ai/context/features.md`
-
-## Runtime Info
+Use the installed tool; do not implement the algorithm in the conversation:
 
 ```bash
-git config user.name
-date "+%Y-%m-%d %H:%M"
+python3 ~/.ai/tools/workflow.py reindex --root .
 ```
 
-## Input
+Forward `--dry-run` to preview the output path, task count, terminal renames, and warnings without writing. `--force` is accepted for compatibility; the tool always reads current spec metadata, including CLOSED files. It does not trust cached index entries. Python 3.9+ is required.
 
-**$ARGUMENTS**
+## Behavior
 
-- **Empty** → normal reindex (skip CLOSED files)
-- **`--force`** → deep reindex (re-read CLOSED files too — use after changing the spec schema)
+- Discover the nearest repo/project root and shared context, including from a subdirectory.
+- Read local specs and shared cross-repo specs relevant to this repo.
+- Validate Task ID against filename and heading, status, cross-repo rows, and duplicate IDs before writing.
+- Compute overall status from per-repo rows; preserve task-level Cancelled/Deprecated.
+- Group by module, use per-repo status for Cross-repo entries, include counts and revision badges.
+- Link shared specs relative to the actual index directory, including CLOSED files.
+- Rename local terminal specs to CLOSED, without changing their content or staging git changes.
+- Never rename a shared spec when invoked from a child repo.
+- Write the complete index atomically. Repeated runs with unchanged specs produce identical bytes.
+- Do not add a current timestamp: it would break idempotence. Entries show source Last Updated instead.
 
----
+## Ownership
 
-## Algorithm
+`features.md` is derived. Only `/reindex` writes it. `/reindex` may rename local terminal specs but must not change spec content, status, or Changelog. `/change` records reopen and status transitions. A mismatching cross-repo header produces a warning; report the discrepancy for `/change` rather than silently changing it.
 
-### Step 1: List spec files
+## Errors and reporting
 
-```bash
-ls -1 .ai/context/specs/
-```
+Invalid or duplicate specs → report errors and stop; do not overwrite the index or guess a status. Suggest reviewing the named spec. An empty specs directory produces an empty registry. A missing directory is allowed for indexing but reported by `validate`.
 
-Split into 2 groups:
-- `active_files` = starts with `TASK-`
-- `closed_files` = starts with `CLOSED-TASK-`
-
-### Step 2: Parse existing features.md (cache)
-
-Read the current `features.md` → `prev_entries[task_id] = entry_text`
-
-Used for:
-- **frozen cache** of CLOSED tasks (no need to re-read files)
-- **reopen detection** (compare with active files that just lost the CLOSED prefix)
-
-No `features.md` (first run) → `prev_entries = {}`
-
-### Step 3: Process active files
-
-For each file in `active_files`:
-
-1. Read spec → extract: `Title` (H1), `Module`, `Status`, `Last Updated`, `Created`,
-   count of Changelog entries of type `CHANGED`/`FIXED`/`REFACTORED` after `BUILT` (for the ✏️ badge)
-
-2. **Reopen detection**: `task_id` is in `prev_entries` and the old link has the `CLOSED-` prefix
-   → append a Changelog entry in the spec file:
-   ```
-   - **{today}** REOPENED — Re-edited after closure by {git user}
-   ```
-
-3. **Auto-close**: if Status ∈ {`✅ Done`, `📦 Deprecated`, `❌ Cancelled`}
-   → `git mv TASK-{id}.md CLOSED-TASK-{id}.md` (fallback `mv` if not a git repo)
-   → entry link points to `specs/CLOSED-TASK-{id}.md` + show 🔒
-
-4. Render a 1-line entry:
-
-   **Active**:
-   ```markdown
-   - {icon} [TASK-{id}](specs/TASK-{id}.md) — {Title} ({Developer}) — updated {date}
-   ```
-   **Closed**:
-   ```markdown
-   - {icon} 🔒 [TASK-{id}](specs/CLOSED-TASK-{id}.md) — {Title} ({Developer}) — closed {date}
-   ```
-   Has Changelog after `BUILT` → insert `✏️({N})` between icon and link
-
-### Step 4: Process closed files
-
-1. `task_id` already in entries from Step 3 → **skip** (active wins)
-2. No `--force` → use `prev_entries[task_id]`; not in cache → read the file once to build the entry
-3. With `--force` → re-read every file (override cache)
-
-### Step 5: Group by Module + Status
-
-- active statuses (📋 / 🚧 / ⚠️ / ✅ / 🔴) → `# {Module}` section
-- terminal-archive (❌ / 📦) → `# Archived` section
-- Order within each section: 🔴 > 🚧 > 📋 > ⚠️ > ✅
-
-### Step 6: Compute At a Glance
-
-total + count per status + table per module
-
-### Step 7: Write features.md
-
-```markdown
-# Feature Registry
-
-> Derived view — regenerated by `/reindex`
-> Source of truth: `.ai/context/specs/TASK-*.md`
-> Do not edit by hand — `/reindex` overwrites the whole file
-
----
-
-## Legend
-
-| Icon | Status |
-|---|---|
-| 📋 | Planned |
-| 🚧 | In Progress |
-| ⚠️ | Done (untested) |
-| ✅ | Done |
-| 🔴 | Blocked |
-| ❌ | Cancelled |
-| 📦 | Deprecated |
-| 🔒 | Closed (spec file renamed to CLOSED-) |
-| ✏️(N) | N changes after build |
-
----
-
-## At a Glance
-
-**Total**: {N} | ✅ {n} | ⚠️ {n} | 🚧 {n} | 📋 {n} | 🔴 {n} | ❌ {n} | 📦 {n}
-**Last reindex**: {now} by {git user}
-**Files scanned**: {N_active} active + {N_closed} closed (cached)
-
-| Module | 📋 | 🚧 | ⚠️ | ✅ | 🔴 |
-|---|---|---|---|---|---|
-| {Module} | ... |
-
----
-
-# {Module 1}
-
-- {entries}
-
-# {Module 2}
-
-- {entries}
-
----
-
-# Archived
-
-- {entries ❌ / 📦}
-```
-
-### Step 8: Output summary
-
-```
-✅ Reindex Complete
-
-📊 Scanned:
-   - Active files:  {N}
-   - Closed files:  {N} (cached, skipped)
-   {if --force}: Closed re-read: {N}
-
-🔄 Status changes (renamed to CLOSED):
-   - TASK-{id}: {Title} → CLOSED-TASK-{id}.md (status: ✅)
-
-♻️ Reopened:
-   - TASK-{id}: {Title} (REOPENED log added)
-
-📝 features.md regenerated
-   - Total: {N} | Active: {n} | Closed: {n}
-```
-
----
-
-## Cross-repo Specs
-
-Applies inside a multi-repo project (has `<project>/.ai/context/PROJECT.md`) — single repos skip this section
-
-**Run in a repo**: after Step 3-4 for the repo itself → list `<project>/.ai/context/specs/TASK-*.md`
-Read only the header (`**Repos**:`, `**Status**:`) + this repo's row in Implementation Status → keep only specs whose `**Repos**:` includes this repo
-Render in the `# Cross-repo` section of the repo's `features.md`:
-```markdown
-- {icon for this repo} [TASK-{id}](../.ai/context/specs/TASK-{id}.md) — {Title} — overall {overall icon} · repos: {list}
-```
-- Project `CLOSED-TASK-*` → use cache from the existing features.md (same rule as Step 4) / ❌ do not rename project files from a repo
-- Count into the repo's At a Glance using **this repo's** status (not overall)
-
-**Run at the project root**: same Algorithm as a repo (Step 1-8) on `<project>/.ai/context/specs/` + the project's `features.md`
-- Before rendering → recompute Overall Status from Implementation Status (AI.md › Cross-repo Task) — mismatch with `**Status**:` → fix `**Status**:` + mention it in the summary
-- auto-close uses Overall Status — rename with `git mv` if root is a git repo, otherwise → `mv`
-- Entry shows per-repo status: `- {overall} [TASK-{id}](specs/TASK-{id}.md) — {Title} — api ✅ · web 🚧 · worker 📋`
-
----
-
-## Rules
-
-### Must Do
-- **Idempotent** — 2 consecutive runs give the same result
-- **Use cache for CLOSED** — do not re-read files in normal mode
-- **Auto-close terminal status** as soon as found
-- **Auto-log REOPENED** when a reopen is detected
-- **Include `Last reindex`** — time + who ran it
-- **Put ❌/📦 in `# Archived`** — don't mix with active modules
-
-### Must Not
-- ❌ **Read CLOSED files** in normal mode
-- ❌ **Edit spec file content** except: append `REOPENED` entry, rename files, sync a cross-repo spec's `**Status**:` to match Overall (only when run at the project root)
-- ❌ **Write features.md before the scan finishes** — build full content in memory before writing
-- ❌ **Delete any file**
-
----
-
-## Edge Cases
-
-| Case | Handling |
-|---|---|
-| `features.md` doesn't exist (first run) | Read every spec incl. CLOSED to build entries the first time |
-| `features.md` can't be parsed | warn + fallback to `--force` mode |
-| Both `TASK-{id}.md` and `CLOSED-TASK-{id}.md` exist | warn duplicate, use active as primary, don't delete CLOSED |
-| spec has no `Module` | warn + put in `# Unknown` section |
-| spec has no `Status` | warn + treat as 📋 Planned |
-| active file but terminal status | append REOPENED + auto re-close + suggest changing status to 🚧 if still editing |
-| `specs/` empty | render only Legend + empty At a Glance (no error) |
-| not a git repo | use `mv` instead of `git mv` |
-
----
-
-## Output Language
-
-Reply in **Thai** / technical terms, task-id, path → **English**
-
----
-
-## Examples
-
-```
-dev: /reindex
-AI: ✅ Reindex Complete
-    📊 Active: 3 | Closed: 47 (cached)
-    🔄 Status changes: None
-    📝 features.md regenerated — Total: 50
-
-dev: /reindex   (after /build finishes)
-AI: 🔄 Status changes (renamed to CLOSED):
-       - TASK-20260512-1430: Center CRUD → CLOSED-TASK-20260512-1430.md (✅)
-
-dev: /reindex --force
-AI: ✅ Reindex Complete (FORCE) — Closed re-read: 46 (full scan)
-```
+Summarize tasks indexed, terminal renames, warnings, and output path. If Python is unavailable, report the prerequisite; never claim the tool ran.

@@ -5,6 +5,24 @@
     "antigravity": {"model": "pro"},
     "zcode": {"model": "inherit"}
   },
+  "code-reviewer": {
+    "claude": {"model": "sonnet", "effort": "medium"},
+    "codex": {"model": "gpt-6.1-sol", "effort": "medium"},
+    "antigravity": {"model": "pro"},
+    "zcode": {"model": "inherit"}
+  },
+  "debugger": {
+    "claude": {"model": "sonnet", "effort": "medium"},
+    "codex": {"model": "gpt-6.1-sol", "effort": "medium"},
+    "antigravity": {"model": "pro"},
+    "zcode": {"model": "inherit"}
+  },
+  "codebase-explorer": {
+    "claude": {"model": "sonnet", "effort": "medium"},
+    "codex": {"model": "gpt-6-luna", "effort": "medium"},
+    "antigravity": {"model": "flash"},
+    "zcode": {"model": "inherit"}
+  },
   "impact-analyzer": {
     "claude": {"model": "sonnet", "effort": "medium"},
     "codex": {"model": "gpt-6.1-sol", "effort": "medium"},
