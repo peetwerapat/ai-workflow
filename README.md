@@ -6,7 +6,10 @@
 ai/                      ← source of truth ชุดเดียว
 ├── AI.md                  rule กลาง (workflow, status vocabulary, critical rules)
 ├── commands/              /ai-init /spec /build /change /status /reindex /sync
-├── agents/                spec-analyzer, impact-analyzer
+├── agents/                spec-analyzer, impact-analyzer, code-reviewer, debugger, codebase-explorer
+├── workflows/             helper routing, practical validation, completeness, feedback
+├── tools/                 Python tools: index, validation, context, doctor/rollback, evaluation
+├── evals/                 behavioral rubrics (10 scenarios)
 └── templates/             โครงไฟล์ระดับ repo สำหรับ /ai-init
     └── project/           โครงไฟล์ shared context ของ multi-repo project
 ```
@@ -19,6 +22,8 @@ git clone <repo> && cd ai-workflow
 ./install.sh all          # ทุกตัว ไม่ถามเมนู
 ./install.sh claude       # เฉพาะตัวใดตัวหนึ่ง (claude | codex | antigravity | zcode | shell)
 ./install.sh --status     # ดูว่าติดตั้งอะไรไว้
+./install.sh --doctor     # ตรวจ config, symlink และไฟล์ generate ที่ล้าสมัย
+./install.sh --rollback   # คืนค่าก่อนติดตั้งครั้งล่าสุด ถ้าไฟล์ยังไม่ถูกแก้ภายหลัง
 ./install.sh --update     # ดึงเวอร์ชันใหม่จากต้นทางแล้วติดตั้งทับ
 ./install.sh --uninstall  # ถอนเฉพาะสิ่งที่ script สร้าง (รวม ~/.ai-agent + shell wrapper)
 ```
@@ -70,6 +75,8 @@ symlink ทุกเส้นและ shell wrapper จึงชี้ไป `~
 
 `install.sh` จะเพิ่ม `codex()` + `agy()` wrapper ใน shell rc ให้ด้วย — sync skill ให้ก่อนเปิดทุกครั้ง
 
+wrapper ตรวจ doctor เฉพาะ provider ก่อนเปิด ถ้าไฟล์ยังตรงกับ source จะข้ามการ generate; ถ้า sync ล้มเหลวจะแสดง error และหยุดเปิด assistant เพื่อให้แก้ก่อน
+
 ไม่อยากให้แตะ shell rc → `AI_AGENT_NO_SHELL=1 ./install.sh` (แต่ต้องรัน `./install.sh codex` / `antigravity` เองทุกครั้งที่แก้ command)
 
 ไฟล์เดิมที่ทับจะถูกสำรองเป็น `*.bak-YYYYMMDD-HHMMSS` ก่อนเสมอ
@@ -104,7 +111,7 @@ symlink ทุกเส้นและ shell wrapper จึงชี้ไป `~
 
 Claude ใช้ `effort`, Codex ใช้ `model_reasoning_effort`, ZCode ใช้ `thoughtLevel` เมื่อระบุ model เฉพาะ (เช่น `{"model": "glm-5.3", "effort": "high"}`) ส่วน Antigravity CLI รองรับ model tier `inherit`/`flash`/`pro` ใน agent file แต่ยังไม่มี effort ระดับ agent ใน schema ที่เผยแพร่ จึงไม่รับ `effort` สำหรับ provider นี้ ตัวติดตั้งจะหยุดพร้อม error หากระบุค่า unsupported
 
-ทั้งสอง analyzer เป็น read-only; Codex agent ที่ generate จะตั้ง `sandbox_mode = "read-only"` ด้วย หาก runtime ไม่มี subagent tool คำสั่งจะวิเคราะห์ใน main context และ model/effort เฉพาะ agent จะไม่มีผล
+agent ทั้ง 5 ตัวเป็น read-only; Codex agent ที่ generate จะตั้ง `sandbox_mode = "read-only"` ด้วย หาก runtime ไม่มี subagent tool คำสั่งจะวิเคราะห์ใน main context และ model/effort เฉพาะ agent จะไม่มีผล
 
 **Codex** (0.155+) เลิกใช้ `~/.codex/prompts/` แล้ว — custom command ต้องเป็น **skill** (`~/.codex/skills/<name>/SKILL.md`)
 และเรียกด้วย **`$`** ไม่ใช่ `/` — frontmatter รับแค่ `name`, `description`, `license`, `allowed-tools`, `metadata`
@@ -135,6 +142,11 @@ feature ใหม่:  /spec <requirement> → /build   → /reindex
 แก้ของเดิม:    /change <task-id> "<desc>"     → /reindex
 ดูภาพรวม:      /status | /status mine | /status <task-id>
 ตรวจ drift:    /sync [--fix]
+ส่งต่องาน:     /handoff [task-id]
+จำบทเรียน:     /learn <กฎที่ยืนยันแล้ว พร้อมขอบเขตและหลักฐาน>
+ตรวจโค้ด:      /review [scope]
+หาสาเหตุ bug:  /debug <อาการและวิธีทำให้เกิด>
+หาโค้ด/flow:   /explore <คำถามหรือ module>
 ```
 
 > **Codex ใช้ `$` แทน `/`** — `$spec`, `$build`, `$ai-init`
@@ -165,6 +177,9 @@ feature ใหม่:  /spec <requirement> → /build   → /reindex
     ├── ARCHITECTURE.md
     ├── features.md          ← derived view, regen ด้วย /reindex เท่านั้น
     ├── untracked.md
+    ├── context-map.json     ← source prefix → context files ที่เกี่ยวข้อง
+    ├── HANDOFF.md           ← งานที่ทำแล้ว/เหลือ และ validation ที่เกิดขึ้นจริง
+    ├── LESSONS.md           ← บทเรียนที่ dev ยืนยัน พร้อมหลักฐานและเงื่อนไขทบทวน
     └── specs/
         ├── TASK-YYYYMMDD-HHMM.md
         └── CLOSED-TASK-YYYYMMDD-HHMM.md
@@ -262,8 +277,8 @@ cd ~/dev/ai-agent
 ```bash
 cd ~/dev/ai-agent && git pull && ./install.sh
 ```
-Claude เห็นทันทีหลัง `git pull` (symlink) ส่วน Codex/Antigravity มี wrapper sync ให้ตอนเปิด
-ZCode: commands เห็นทันที (symlink) แต่ agents ต้องรัน `./install.sh` ซ้ำ
+หลัง self-install ให้รันตัวติดตั้งหรือ `~/.ai-agent/install.sh --update` เพื่อคัดลอก source ใหม่เข้า permanent store ทุก provider ใช้ชุดใน store นั้น
+Codex/Antigravity มี wrapper ตรวจ generation drift ก่อนเปิด ส่วน ZCode ให้ติดตั้งซ้ำเมื่อแก้ agents
 
 ### สิ่งที่แชร์ vs ไม่แชร์
 
@@ -310,6 +325,83 @@ repo ที่มี `.claude/commands/`, `.codex/agents/` ค้างอยู
 
 Frontmatter ที่ command ใช้: `description`, `argument-hint`
 Claude + ZCode อ่านครบ / Codex + Antigravity ใช้ `name` + `description` (generator แปลงให้) และแทน `$ARGUMENTS` ด้วยข้อความที่ user พิมพ์ต่อท้าย
+
+## Agent ช่วยทำงานตามสถานการณ์
+
+เลือก helper ตามกฎใน `ai/workflows/implementation.md` ซึ่งใช้ร่วมกันทั้ง direct coding, `/build` และ `/change`:
+
+| Agent | ใช้เมื่อ | สิ่งที่ส่งกลับ |
+|---|---|---|
+| `codebase-explorer` | ไม่รู้ entry point, pattern หรือ consumer ใน repo ใหญ่ | flow สั้น ๆ กับ path/symbol ที่ควรอ่านและแก้ |
+| `debugger` | สาเหตุไม่ชัด หรือแก้ครั้งแรกแล้วอาการยังอยู่ | สาเหตุที่ยืนยันได้/สมมติฐาน หลักฐาน และแนวแก้ที่เล็กที่สุด |
+| `code-reviewer` | แก้ behavior, หลายไฟล์, public contract หรือจุดสำคัญ | bug ที่มี trigger จริง จุด wiring/caller ตกหล่น และ requirement ที่ยังไม่ครบ |
+
+งานเล็กที่ชัดเจนให้ตัวหลักทำจบ helper ทุกตัวอ่านอย่างเดียวและห้ามเรียก agent ต่อ ตัวหลักเป็นผู้แก้โค้ด โดยปกติเรียกแต่ละบทบาทหนึ่งรอบและใช้ findings เดิมต่อ รอบเพิ่มต้องมีข้อมูลใหม่หรือมีจุดแก้ที่ต้องตรวจยืนยัน
+
+เรียกเองได้ด้วย `/review`, `/debug`, `/explore` (Codex ใช้ `$review`, `$debug`, `$explore`) ทั้งสามคำสั่งเป็น read-only; `/debug` จะแก้โค้ดเมื่อคุณระบุให้แก้ด้วยเท่านั้น การเลือก helper เป็นคำสั่งให้ assistant ปฏิบัติตามและขึ้นกับ runtime ไม่ได้มี background orchestrator แยก ถ้าไม่มี native role จะใช้ prompt เดียวกันผ่าน helper ทั่วไปหรือทำ focused pass ในตัวหลัก และต้องบอกหากไม่ได้ review แบบแยก agent
+
+ก่อนจบงานมี completeness check เทียบคำขอเดิมกับ code จริง รวม entry point, wiring, config, exports, caller และ contract ที่เกี่ยวข้อง reviewer ต้องอ้างไฟล์และสถานการณ์ที่ทำให้เกิดปัญหา การไม่มี automated test เพียงอย่างเดียวไม่ถือเป็น bug
+
+ค่าเริ่มต้นการตรวจคือ **ลอง flow จริง** และบอก input/steps, environment, expected/observed result ถ้าลองไม่ได้จะระบุว่า `not run` พร้อมวิธีให้คุณลองต่อ ไม่หยุดงานเพียงเพราะไม่มี test runner เลือก automated tests ได้ด้วย `/build ... --validation tests` หรือ `/change ... --validation tests`; required checks ของทีมยังใช้ตามเดิม
+
+สถานะยังแยกหลักฐานตามเดิม: ✅ มี automated checks ที่เกี่ยวข้องผ่านใน code state ปัจจุบัน; ⚠️ คือ implementation ที่ไม่มีหลักฐาน automated tests โดยบันทึก `flow passed` หรือ `flow not run` แยก; มี failure ที่ยังไม่แก้เป็น 🚧
+
+feedback ระหว่างใช้งานจะปรับงานปัจจุบันทันที หากเป็นบทเรียนที่ควรใช้ต่อ จะเสนอเป็นกฎเฉพาะขอบเขตผ่าน `/learn` ก่อนบันทึก การชมว่าครั้งหนึ่งใช้ได้หรือการแก้คำตอบหนึ่งครั้งไม่ทำให้เกิดกฎถาวรอัตโนมัติ
+
+## เครื่องมือ Python
+
+ใช้ Python standard library เท่านั้น: runtime tools ต้องการ Python 3.9+ ส่วน tests ใช้ Python 3.11+ เพราะอ่าน TOML ด้วย `tomllib` ไม่ต้องติดตั้ง package เพิ่ม
+
+```bash
+python3 ai/tools/workflow.py resolve --root /path/to/repo/subdirectory
+python3 ai/tools/workflow.py context --root /path/to/repo --path src/customer/handler.py
+python3 ai/tools/workflow.py validate --root /path/to/repo
+python3 ai/tools/workflow.py reindex --root /path/to/repo --dry-run
+python3 ai/tools/workflow.py reindex --root /path/to/repo
+```
+
+เมื่อติดตั้งแล้วใช้ path `~/.ai/tools/` แทน `ai/tools/` ได้ ผลลัพธ์เป็น JSON และ exit code ไม่เป็นศูนย์เมื่อพบ error
+
+`/reindex` ใช้เครื่องมือเดียวกันทุก assistant: ตรวจ ID ซ้ำ/สถานะ/แถว cross-repo ก่อนสร้าง index, คำนวณ overall status, สร้างลิงก์จากตำแหน่งจริง และ rename terminal specs เฉพาะ scope ที่รัน โดยไม่แก้เนื้อหา spec หรือ stage git การรันซ้ำให้เนื้อหาเหมือนเดิม จึงไม่ใส่ timestamp ปัจจุบันและไม่ใช้ cache จาก index เก่า `--force` ยังใช้ได้เพื่อรองรับคำสั่งเดิม
+
+`validate` ตรวจโครงสร้าง metadata กับลิงก์ไฟล์ภายใน ไม่ได้พิสูจน์ business behavior หรือยืนยันว่ารันทดสอบจริง สถานะ ✅ ยังต้องมีหลักฐานจากคำสั่งทดสอบปัจจุบัน ส่วน `/sync` รายงานโค้ดที่ไม่มี spec เป็นข้อมูล coverage; จะเป็น critical เมื่อพบหลักฐานว่าขัดกับ rule/contract
+
+ตัวอย่าง `.ai/context/context-map.json` (เติมจากโครงสร้างจริงตอน `/ai-init`):
+
+```json
+{
+  "version": 1,
+  "modules": [
+    {"path": "src/customer", "context": [".ai/context/customer-rules.md"]}
+  ]
+}
+```
+
+selector คืน candidate paths ให้ AI ตรวจต่อ ใช้เฉพาะ module ที่เกี่ยวข้อง และไม่แทนที่กฎของทีม การทำงานต่อให้อ่าน `HANDOFF.md` แล้วเทียบ HEAD/diff; บทเรียนใน `LESSONS.md` ต้องผ่านการยืนยัน มี path/symbol อ้างอิง และทบทวนเมื่อ code ที่รองรับเปลี่ยน
+
+## ตรวจสุขภาพและย้อนกลับการติดตั้ง
+
+```bash
+./install.sh --doctor
+./install.sh --rollback
+```
+
+ก่อนติดตั้งจะ validate source และเก็บ snapshot ของ source store กับตำแหน่งไฟล์ที่ installer จัดการ เมื่อติดตั้งล้มเหลวจะคืนค่าเดิม การติดตั้งสำเร็จบันทึก manifest แยกตาม provider เพื่อให้ doctor ตรวจ broken symlink, ไฟล์ถูกแก้/หาย และ source ที่เปลี่ยนหลัง generate ได้ การติดตั้ง provider เดียวไม่ล้างสถานะ stale ของตัวอื่น
+
+snapshot อยู่ที่ `~/.ai-agent-history/` (กรณีเปลี่ยน `AI_AGENT_HOME` จะอยู่ข้าง store ตามชื่อเดียวกัน) และเก็บไว้หลัง uninstall `--rollback` ย้อนการติดตั้งล่าสุดหนึ่งครั้งและหยุดถ้าไฟล์ใน snapshot ถูกแก้ภายหลัง เพื่อรักษางานใหม่ของผู้ใช้ ไฟล์ backup แบบ `.bak-*` เดิมยังคงอยู่ การคืนค่าไม่ครอบคลุมไฟดับหรือ process ที่ถูก kill แบบไม่เปิดโอกาสให้ cleanup; กรณีนั้น snapshot ยังใช้ตรวจสอบกู้คืนได้
+
+doctor ตรวจสถานะไฟล์ในเครื่อง ไม่รับรองว่า provider โหลด schema หรือรองรับ model นั้นจริง หากเปลี่ยน `models.json` ควรทดลองเรียก analyzer ใน provider นั้นด้วย
+
+## Tests และการประเมิน AI
+
+```bash
+python3.11 -m unittest discover -s tests -v
+bash -n install.sh
+python3 ai/tools/installation.py validate-source --root .
+python3 ai/tools/evaluate.py --responses /tmp/responses.json --output /tmp/report.json
+```
+
+CI รันบน Linux/macOS และครอบคลุม generation, index, context selection, doctor, failure recovery, rollback และ scorer ส่วน behavioral evaluation มี 10 โจทย์ใน `ai/evals/cases.json` พร้อมวิธีเก็บ trace และ metrics ใน [evals/README.md](evals/README.md) ต้องรันกับ assistant จริงแล้วตรวจ transcript เพื่อเปรียบเทียบความสามารถ; unit tests ของ scorer ไม่ใช่ผลประเมิน model
 
 ---
 

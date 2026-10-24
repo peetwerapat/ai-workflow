@@ -44,8 +44,9 @@ class AgentGenerationTest(unittest.TestCase):
             self.assertIn("effort: medium", claude)
 
             codex = tomllib.loads((homes["codex"] / "agents" / "spec-analyzer.toml").read_text())
-            self.assertEqual(codex["model"], "gpt-6-luna")
-            self.assertEqual(codex["model_reasoning_effort"], "xhigh")
+            configured = json.loads((checkout / "ai/agents/models.json").read_text())["spec-analyzer"]["codex"]
+            self.assertEqual(codex["model"], configured["model"])
+            self.assertEqual(codex["model_reasoning_effort"], configured["effort"])
             self.assertEqual(codex["sandbox_mode"], "read-only")
             self.assertIn("# Spec Analyzer", codex["developer_instructions"])
 
@@ -57,6 +58,27 @@ class AgentGenerationTest(unittest.TestCase):
             zcode = (homes["zcode"] / "agents" / "spec-analyzer.md").read_text()
             self.assertIn("model: inherit", zcode)
             self.assertNotIn("thoughtLevel:", zcode)
+
+            settings = json.loads((checkout / "ai/agents/models.json").read_text())
+            for name in ("code-reviewer", "debugger", "codebase-explorer"):
+                source = (checkout / "ai/agents" / f"{name}.md").read_text().split("---", 2)[2].strip()
+                for provider, directory in (("claude", "claude"), ("codex", "codex"),
+                                            ("antigravity", "agy"), ("zcode", "zcode")):
+                    suffix = ".toml" if provider == "codex" else ".md"
+                    artifact = homes[directory] / "agents" / (name + suffix)
+                    self.assertTrue(artifact.is_file(), str(artifact))
+                    content = artifact.read_text()
+                    self.assertIn(source, content if provider != "codex" else tomllib.loads(content)["developer_instructions"])
+                    if provider == "codex":
+                        native = tomllib.loads(content)
+                        self.assertEqual(native["sandbox_mode"], "read-only")
+                        self.assertEqual(native["model"], settings[name][provider]["model"])
+                        self.assertEqual(native["model_reasoning_effort"], settings[name][provider]["effort"])
+                    else:
+                        self.assertIn("model: " + settings[name][provider]["model"], content)
+            for name in ("review", "debug", "explore"):
+                self.assertIn(f"name: {name}", (homes["codex"] / "skills" / name / "SKILL.md").read_text())
+            self.assertTrue((homes["shared"] / "workflows/implementation.md").is_file())
 
             settings = json.loads((checkout / "ai" / "agents" / "models.json").read_text())
             settings["spec-analyzer"]["zcode"] = {"model": "glm-5.3", "effort": "high"}

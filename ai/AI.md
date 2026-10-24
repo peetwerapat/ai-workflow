@@ -108,11 +108,16 @@ Use these slash commands when the dev invokes one or explicitly asks for its spe
 |---|---|
 | `/ai-init [--project\|--repo] [--lang en\|th]` | explicitly requested initialization → scaffold context + project memory |
 | `/spec <requirement>` | explicitly requested spec → analyze + save spec |
-| `/build [task-id]` | explicitly requested build of a recorded spec + tests |
+| `/build [task-id]` | explicitly requested build of a recorded spec with practical validation |
 | `/change <task-id> "<desc>"` | explicitly requested recorded change with impact analysis |
 | `/status [filter]` | feature overview |
 | `/reindex [--force]` | regenerate `features.md` from `specs/` + auto-close terminal tasks |
 | `/sync [--fix]` | detect drift between specs ↔ real code |
+| `/handoff [task-id]` | record current work, evidence, and next steps for another session |
+| `/learn <lesson>` | propose or record a developer-confirmed lesson with code evidence |
+| `/review [scope]` | review current changes for concrete defects and missing behavior, read-only |
+| `/debug <symptom>` | investigate a failure; implement only if fixing is also authorized |
+| `/explore <question>` | locate entry points, code flow, patterns, and consumers, read-only |
 
 ### Spec-driven Flows (when requested)
 
@@ -127,14 +132,15 @@ Daily start:   /status mine
 Weekly check:  /sync → /reindex
 ```
 
-Direct coding request: read available context → inspect code → implement → test → report.
+Direct coding request: read available context → inspect code → implement → exercise a practical flow → check completeness → report. Use `~/.ai/workflows/implementation.md` to select helpers and validation; do not create a spec implicitly.
 
 ### Flags
 
 - `--quick` (spec / change) — skip analysis, trust dev
 - `--incremental` (build) — stop for review after every layer
-- `--no-test` (build) — skip tests (prototypes only)
+- `--no-test` (build / change) — skip optional automated tests; practical flow checks still apply
 - `--resume` (build) — continue where it stopped
+- `--validation flow|tests` (build / change) — practical flow by default; opt into relevant automated tests
 - `--dry-run` (change) — show impact without changing anything
 - `--fix` (sync) — fix detected drift
 - `--force` (reindex) — re-read closed specs
@@ -170,11 +176,15 @@ One set for every project, in spec files and `features.md`.
 | File | Writable by | Never touched by |
 |---|---|---|
 | `specs/TASK-*.md` (spec content) | `/spec`, `/change` | `/build`, `/status`, `/reindex` |
-| `specs/TASK-*.md` (Status / Implementation Status / Changelog / Gotchas) | `/build`, `/change`, `/sync --fix` | `/status` |
+| `specs/TASK-*.md` (Status / Implementation Status / Changelog / Gotchas) | `/build`, `/change`, `/sync --fix` | `/status`, `/reindex` |
+| spec filename | `/reindex` (terminal rename), `/change` (reopen) | — |
 | `features.md` | `/reindex` only | every other command |
 | `ARCHITECTURE.md` | dev (AI may propose, dev must confirm) | — |
 | memory file tracked in git (team's) | dev / team only — AI may propose a diff | **every command**, including `/ai-init --force` |
 | `.ai/context/MEMORY.md` | `/ai-init`, dev | — |
+| `.ai/context/context-map.json` | `/ai-init`, dev (other commands propose changes) | — |
+| `.ai/context/HANDOFF.md` | `/handoff`, `/build`, `/change`, direct coding request | `/status`, `/reindex` |
+| `.ai/context/LESSONS.md` | `/learn` after developer confirmation | every other command (may propose lessons) |
 | `<project>/.ai/context/{PROJECT,ARCHITECTURE,conventions,integrations}.md` (shared) | `/ai-init` (first time), dev — other commands may propose a diff; dev must confirm before writing | `/status`, `/reindex` |
 | `<project>/.ai/context/specs/`, `features.md` | same rules as the repo's `specs/` + `features.md` (above) | — |
 | source code | `/build`, `/change`, direct coding request | `/spec`, `/status`, `/reindex`, `/sync` (except `--fix`, which edits docs) |
@@ -202,6 +212,16 @@ Order: shared project context (if any — see Context Resolution) → project me
 - Found a pattern not in `ARCHITECTURE.md` → tell the dev an ADR should be added (never add it yourself)
 - ❌ Never introduce a new style because you think it is better
 
+### Context selection, evidence, and continuity
+
+- When available, use `python3 ~/.ai/tools/workflow.py context --root . --path <repo-relative-source-path>` (repeat `--path`) to discover candidate context. Read shared PROJECT.md first, then team memory, personal memory, architecture, relevant spec, module rules, and code. Load only mapped context for affected modules; a map is a hint, never an authority over team rules.
+- Cite a real file path and symbol/section for dependency, security, and architecture claims. Separate observed facts, assumptions, and missing evidence. Search consumers before concluding there are none.
+- HANDOFF.md is a checkpoint: check task identity, git HEAD, working diff, and referenced files before resuming. An earlier test pass does not cover later code changes.
+- Consult confirmed, relevant LESSONS.md entries only after team rules. Verify evidence against current code; stale or superseded entries must not silently guide changes. Propose corrections through /learn.
+- Record checkpoints at a natural boundary of substantial work, on an explicit handoff request, or before ending with unfinished work. If local .ai/ does not exist, report a handoff in the response instead of initializing context implicitly.
+- Never auto-promote an observation into a permanent lesson. A developer's explicit request to remember a specific rule counts as confirmation of that rule; inferred lessons require review.
+- Missing spec coverage is informational for direct coding; it is critical only when evidence shows a rule/contract contradiction. Only current successful test evidence supports ✅.
+
 ### 4. Multi-tenant isolation (if the project is multi-tenant)
 
 - Every query filters by a tenant key derived from the **authenticated context** only
@@ -218,7 +238,8 @@ Order: shared project context (if any — see Context Resolution) → project me
 
 ### 6. Test
 
-- `/build` and `/change` always come with tests, except `--no-test`
+- Default validation is a focused practical flow, using `~/.ai/workflows/implementation.md`. Missing test infrastructure does not block implementation. Run automated checks when requested, required by team rules, or useful for a risky calculation or recurring bug; do not create a test framework as a side effect.
+- Report flow steps, actual result, and limits. Preserve ✅ for current passing automated-test evidence; otherwise use ⚠️ for implemented work and record flow validation separately. An observed failure remains 🚧. Never infer a pass from code review alone.
 - Tests fail 3 times → **stop** and report; leaving 🚧 beats a fake ✅
 - REFACTORED → existing tests must pass unchanged; if they break, it is not a real refactor
 
@@ -236,12 +257,17 @@ Order: shared project context (if any — see Context Resolution) → project me
 
 ## Subagents
 
-When explicitly used, `/spec` and `/change` delegate analysis to a separate agent to save main context. A direct coding request does not automatically invoke these workflows or their analyzers.
+Explicit `/spec` and `/change` keep their analysis workflows. Direct coding may use the execution helpers below according to `~/.ai/workflows/implementation.md`; helper use never implicitly invokes a spec workflow.
 
 | Agent | Used by | Job |
 |---|---|---|
 | `spec-analyzer` | `/spec` | requirement → business rules / risks / edge cases / design |
 | `impact-analyzer` | `/change` | change request → conflict check / dependency trace / risk / approach |
+| `code-reviewer` | substantial implementation, `/review` | actual diff → supported defects, integration gaps, acceptance coverage |
+| `debugger` | unclear/recurring bug, `/debug` | symptom + code evidence → cause, minimal correction, verification flow |
+| `codebase-explorer` | unfamiliar code/unclear consumers, `/explore` | bounded question → entry point, flow, existing pattern, callers |
+
+All five agents are read-only and must not delegate. The main assistant owns edits and decisions. Simple local work stays in the main assistant; use helpers only at their trigger, reuse findings, and avoid repeated reviews without new evidence. Run a completeness check before finishing substantial work. See the shared protocol for budgets, fallback, flow validation, and learning from developer feedback.
 
 Provider-specific model and effort settings live in `~/.ai/agents/models.json`. The installer renders native subagent definitions for Claude Code, Codex CLI, Antigravity CLI, and ZCode. Invoke the installed agent by name when the runtime exposes it. Do not override its model or effort at invocation unless the dev asks.
 **Runtime supports subagents** → delegate to the installed agent.

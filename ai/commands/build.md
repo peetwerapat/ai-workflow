@@ -1,14 +1,14 @@
 ---
 description: Implement an existing recorded spec when the dev explicitly invokes /build or asks to build a task ID; ordinary coding requests do not require a spec
-argument-hint: [task-id] [--repo <name>] [--incremental | --no-test | --resume]
+argument-hint: [task-id] [--repo <name>] [--incremental | --no-test | --resume] [--validation flow|tests]
 ---
 
 # /build — Implement Feature
 
 > **Language**: always talk to the dev in **Thai** (technical terms may stay English). This file is written in English only to save tokens — render every message/report below in Thai.
 
-Implement per the spec file and write tests alongside
-Default: code + test + run tests in one go
+Implement the recorded spec, exercise a practical flow, and check completeness.
+Read `~/.ai/workflows/implementation.md` for helper routing, validation, and feedback. Default validation is `flow`; `tests` is opt-in unless team rules require it.
 
 ## Context Files
 
@@ -29,9 +29,10 @@ Always read before starting:
   - not given → use the latest feature with status 📋 or 🚧
 - **Flags**:
   - `--incremental` — stop for dev review after every layer
-  - `--no-test` — skip tests (prototype only)
+  - `--no-test` — skip automated tests; still exercise the practical flow where available
+  - `--validation flow|tests` — choose practical flow (default) or relevant automated tests
   - `--resume` — continue from existing state
-  - `--repo <name>` — cross-repo spec: build only this repo (default: every repo not yet ✅, in build order)
+  - `--repo <name>` — cross-repo spec: build only this repo (default: unfinished rows in build order; tests mode also selects ⚠️ rows needing automated evidence)
 
 ---
 
@@ -59,7 +60,7 @@ Always read before starting:
 | 📋 Planned | ✅ proceed |
 | 🚧 In Progress (no `--resume`) | ask: start over or resume? |
 | ✅ Done (no `--resume`) | warn + ask: really re-build? (must reopen first) |
-| ⚠️ Done (untested) | proceed — focus on writing tests |
+| ⚠️ Done (untested) | inspect existing work; follow the requested validation mode without rebuilding completed code |
 | 🔴 Blocked | ask about the blocker first |
 | ❌ / 📦 | stop — feature is closed, must reopen first |
 
@@ -75,18 +76,7 @@ Always read before starting:
 **1.5 Detect project commands** — read the project's manifest/scripts to find the real test / lint / typecheck / migration commands
 **Never hardcode `npm test`** if the project uses something else
 
-**1.6 Test readiness check** (skip with `--no-test`) — before writing any code, confirm the repo can already test **the kind of code this spec touches**:
-- a test runner is configured (script + config file), and
-- the libraries that kind of test needs are installed (e.g. React components → a DOM testing library; HTTP handlers → the project's request-testing helper)
-
-Missing → **stop and ask** — setting up test infrastructure is a separate, larger job than the feature:
-```
-⚠️ {repo} has no test setup for {kind of code} (missing: {runner / library})
-A) Build without tests for this repo → status ⚠️ Done (untested), Changelog notes it; set up tests later as a separate task (recommended)
-B) Set up test infrastructure now — installs {packages} (new dependencies), noticeably more work and tokens
-C) Stop
-```
-❌ Never install test dependencies or create test config as a side effect of a feature build — only after the dev picks B
+**1.6 Validation readiness** — identify an available local UI, CLI, API, or runtime flow. Use the shared implementation protocol. If the environment is unavailable, continue authorized implementation and report the unexercised flow with concise steps for the developer. Missing test infrastructure does not require a workflow confirmation. In `tests` mode, report missing tools and offer an existing flow; dependencies still need approval before installation. Mandatory team checks remain required.
 
 ---
 
@@ -96,7 +86,7 @@ C) Stop
 ## Build Plan: {Task ID} — {Feature Name}
 
 **Mode**: default | incremental | resume
-**Skip tests**: yes | no
+**Validation**: flow | tests (record actual evidence)
 
 ### Files to create
 - `{path}` — {purpose}
@@ -104,10 +94,10 @@ C) Stop
 ### Files to modify
 - `{path}` — {what changes}
 
-### Test coverage plan
-- Unit: {count} tests
-- Integration: {count} (if critical flow)
-- Focus: happy path, rule violations, tenant isolation
+### Validation plan
+- Flow: {entry point, input, expected output, available environment}
+- Automated checks: {relevant existing command if selected/required; otherwise not selected}
+- Review: {helper trigger or main-assistant completeness check}
 
 ### Dependencies
 - Existing: {what will be imported}
@@ -167,6 +157,8 @@ Review first? (reply anything to proceed)
 
 ### Resume Mode (`--resume`)
 
+Read HANDOFF.md if it exists; compare task identity, HEAD, branch, and current diff before trusting it. Earlier tests cover only the recorded code state. Report stale validation and re-run relevant checks after subsequent code changes. Consult only confirmed, scoped lessons with current evidence.
+
 1. Read existing code in the feature's area
 2. Diff against the spec → find gaps
 3. Implement only the gaps (do not overwrite existing code)
@@ -184,44 +176,27 @@ Review first? (reply anything to proceed)
 
 ---
 
-## Step 5: Test (unless `--no-test`)
+## Step 5: Validate and Review
 
-### 5.1 Generate Tests
+### 5.1 Practical flow (default)
 
-Cover 4 categories for every business method:
-1. **Happy path** — valid input, correct output
-2. **Business rule violation** — throws/returns the expected error
-3. **Edge cases** — null, empty, boundary
-4. **Tenant isolation** (if multi-tenant) — queries don't leak across tenants
+Use `~/.ai/workflows/implementation.md` to exercise the changed user path and a nearby unaffected case. Record inputs/steps, environment, expected and observed results, and the code state covered. If the environment is unavailable, finish the authorized implementation and report `flow not run` with developer steps; do not install a testing framework or claim a pass.
 
-### 5.2 Run Tests
+### 5.2 Automated checks (when selected or required)
 
-Use the project's real command (from Step 1.5) — scope as narrowly as still covers the change, e.g. filter by module/path
-Follow the [Command Output Budget](#command-output-budget) for every test / lint / typecheck / build run.
+In `--validation tests` mode, use the real relevant project command from Step 1.5. Prefer existing checks. Add a targeted regression only for a recurring bug or behavior that benefits from an executable check; do not generate tests for every method automatically. Follow mandatory team checks and approval rules for dependencies. `--no-test` skips optional automated checks; it cannot waive a mandatory team check silently.
 
-### 5.3 Handle Failures
+### 5.3 Handle failures
 
-- **Attempt 1**: analyze error → fix code or test → rerun
-- **Attempt 2**: analyze deeper (may be a wrong assumption in the spec) → fix → rerun
-- **Attempt 3**: **stop**
-  ```
-  ⚠️ Tests still failing after 3 attempts
+For the same demonstrated failure: inspect evidence and correct once; if the first correction does not fix the symptom, use debugger before another speculative edit. Stop after three failed attempts, keep status 🚧, and report what failed and what evidence is missing. Do not bypass a failed check by changing validation mode.
 
-  Latest error: {error}
-  Analysis: {what I think is wrong}
+### 5.4 Completeness and review
 
-  Status remains 🚧 (not marked done)
-  ```
-
-### 5.4 Lint / Typecheck
-
-After tests pass → run the project's lint + typecheck and make them pass too, before the build counts as done
-Lint/typecheck the changed files first; run the full-project check **once** at the end.
+Inspect reachability, wiring, config names, exports, callers, contracts, and every requested outcome using the shared protocol. Use code-reviewer for a behavior change, multi-file work, or a sensitive path. Verify findings, fix supported issues within scope, and report remaining limits. Review alone never proves a runtime pass. Run lint/typecheck/build only when relevant to the change or required by the team.
 
 ### 5.5 Fix-loop Budget
 
-Besides 3 attempts per failure (5.3), there is a **total budget of 8 fix → rerun cycles per repo** across all failures (tests + lint + typecheck + build).
-Budget reached → **stop**, status stays 🚧, report: what still fails, what was tried, what you suspect. The dev may allow more.
+Keep at most three attempts for the same failure and eight fix → rerun cycles per repo overall. A new helper does not reset the budget. Reached budget → stop with 🚧 and a concrete remaining-work report.
 
 ### Command Output Budget
 
@@ -237,9 +212,9 @@ Command output stays in context and is resent on every later request — keep it
 ## Step 6: Update Spec File
 
 ### 6.1 Status
-- tests pass → `✅ Done`
-- `--no-test` → `⚠️ Done (untested)`
-- tests fail → keep `🚧 In Progress`
+- current relevant automated checks pass and no observed failure remains → `✅ Done`
+- implemented without automated-test evidence → `⚠️ Done (untested)`; record flow passed/not run separately
+- any demonstrated unresolved failure → keep `🚧 In Progress`
 
 ### 6.2 Implementation Status
 
@@ -251,15 +226,16 @@ Replace `_(TBD — pending /build)_`:
 - `{path}`
 - ... (every file created / modified in this build)
 
-**Tests**: {N passing} / {N failing}
+**Validation**: {flow steps/input, expected/observed result, environment, code state; or not run with reason}
+**Tests**: {actual command and result, or not run}
 **Coverage**: {if measurable}
 ```
 
 ### 6.3 Changelog
 ```markdown
-- **{YYYY-MM-DD}** BUILT — Implemented {brief summary} + {N} tests
+- **{YYYY-MM-DD}** BUILT — Implemented {brief summary}; validation: {actual flow/check and result, or not run}
 ```
-(`--no-test` → state explicitly "no tests written — --no-test flag used")
+(Record automated tests as not run when absent; do not attribute that to a flag the developer did not use.)
 
 ### 6.4 Last Updated
 ```markdown
@@ -276,26 +252,25 @@ Found a pitfall the next maintainer should know → add to `## Known Gotchas`
 One spec, many repos — do Steps 1.3-6 **one repo at a time, following `**Repos**:` (build order)**
 
 **Pre-flight**
-- repos to build = every repo in Implementation Status not yet ✅ (or only `--repo <name>`)
+- repos to build = unfinished rows (📋 / 🚧 / 🔴), or explicit `--repo <name>`; `--validation tests` also selects ⚠️ rows needing automated evidence. Do not rebuild flow-verified implementation merely because it has no automated tests.
 - check that files can be written in every repo to be built — if not (e.g. session opened in another repo / sandbox) → stop, recommend:
   `cd <project>` and open a new session, or `/build {task-id} --repo <name>` from a session in that repo
 - any repo without `.ai/` → warn (no ARCHITECTURE to follow), recommend `/ai-init` first
-- run the **1.6 Test readiness check** for every repo to be built and ask once (per repo A/B/C) before building anything
+- identify the available validation flow per repo (1.6); missing test setup alone does not block implementation
 
-**Plan** (Step 2) shown once for all repos: build order, files per repo, test command per repo, contracts the next repo will depend on
+**Plan** (Step 2) shown once for all repos: build order, files per repo, validation flow/mode per repo, contracts the next repo will depend on
 
 **Per repo** (in order):
 1. Read memory file + `ARCHITECTURE.md` + module rule **of that repo** — do not load context of repos not yet reached
 2. Implement only the `### {repo}` section in Proposed Design — paths relative to the project root
-3. Test with that repo's command (Step 1.5 per repo) — different repos may use different runners
+3. Validate with that repo's selected flow or checks, and record actual evidence and unavailable environments
 4. Update that repo's row in Implementation Status (Status / Files / Tests) + Changelog `BUILT [{repo}]`
 5. Recompute **Overall Status** (AI.md › Cross-repo Task), then update `**Status**:` + Last Updated
 6. Pass the actually implemented contract (path, shape) on to the next repo
 
-**Save context**: runtime supports subagents → delegate steps 1-4 of each repo to a subagent, one at a time (in order, never parallel — later repos depend on earlier repos' contracts)
-send input: spec path + repo name + contract summary from the previous repo / receive back: files, tests, actual contract, gotchas
+**Save context**: the main assistant implements one repo at a time, preserving the actual provider contract for the next repo. Use read-only helpers only at the shared protocol's triggers; never assign implementation to the five analysis helpers. Keep a compact checkpoint with files, flow/check evidence, contract, and gotchas rather than rereading unrelated repos.
 
-**Failure**: a repo's tests fail all 3 attempts → stop at that repo (row stays 🚧), **do not build the next repos**
+**Failure**: a repo has a demonstrated unresolved flow/check failure after 3 attempts → stop at that repo (row stays 🚧), **do not build the next repos**
 that depend on it — for repos that don't depend on it (no shared Contract Changes), ask the dev whether to continue
 
 **Contract drift**: actual implementation differs from the spec's Contract Changes → stop, let the dev choose: fix code to match the spec, or `/change`
@@ -314,8 +289,10 @@ that depend on it — for repos that don't depend on it (no shared Contract Chan
 
 ## Step 7: Final Report
 
+For substantial work with an existing `.ai/context/`, update the current task's HANDOFF.md checkpoint using the handoff template. Preserve unrelated work. Include actual validation commands and code state; never invent test evidence. If the directory does not exist, include remaining work in the response instead of initializing context. Suggest lessons for review; only /learn persists confirmed entries.
+
 ```
-## ✅ Build Complete: {Task ID}
+## {actual status icon} Build Result: {Task ID}
 
 ### Summary
 {1-2 sentences}
@@ -326,10 +303,12 @@ Created:
 Modified:
 - `{path}` (+X / -Y lines)
 
-### Tests
-- Unit: X added ({all passing | Y passing, Z failing})
-- Lint / Typecheck: ✅ | ⚠️
-{or "⚠️ Tests skipped — --no-test used"}
+### Validation
+- Mode: flow | tests
+- Steps/input/environment: {actually exercised}
+- Expected / observed: {result, or not run with reason}
+- Automated checks: {actual command and result, or not run}
+- Review/completeness: {resolved findings, requested outcomes covered, and remaining limits}
 
 ### ⚠️ Assumptions
 {every assumption made where the spec was unclear}
@@ -370,8 +349,8 @@ For every endpoint/public interface built this round — so consumers can use it
 ### Must Do
 - **Read spec + ARCHITECTURE.md + module rule** before writing code, every time
 - **Follow existing pattern** — do not create new styles
-- **Write tests alongside code** (except `--no-test`)
-- **Make tests + lint + typecheck pass** before marking ✅
+- **Exercise the selected practical flow**, or report unavailable validation honestly; automated tests are targeted/opt-in unless team rules require them
+- **Require current relevant automated-test evidence for ✅**; record practical flow evidence separately
 - **Update spec file** (Status / Implementation Status / Changelog / Last Updated) every time
 - **Report assumptions + review points** always
 - **Document every public interface built** in the Final Report
@@ -392,9 +371,9 @@ For every endpoint/public interface built this round — so consumers can use it
 
 ### Flag-specific Rules
 
-- **`--no-test`**: only for prototype/exploration — if it is production work → warn the dev first
+- **`--no-test`**: skip optional automated checks; still exercise the practical flow when available and report validation limits
 - **`--incremental`**: use when the feature is complex or the dev wants to tune along the way
-- **`--resume`**: never overwrite existing code without confirm
+- **`--resume`**: inspect current work and preserve unrelated edits; continue already-authorized remaining work without asking again
 
 ---
 
@@ -419,5 +398,5 @@ dev: /build TASK-20260501-1430 --incremental
 AI: [implement layer → stop → confirm → next layer → ...]
 
 dev: /build --no-test
-AI: [implement only → status ⚠️ → warn that it should be tested before production]
+AI: [implement → exercise available practical flow → status ⚠️ with actual flow result; automated tests not run]
 ```

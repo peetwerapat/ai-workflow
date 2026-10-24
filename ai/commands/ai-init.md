@@ -168,6 +168,9 @@ Summarize findings for the dev to check before writing files:
 - `.ai/context/ARCHITECTURE.md`
 - `.ai/context/features.md`
 - `.ai/context/untracked.md`
+- `.ai/context/context-map.json` — source module prefixes and context file paths
+- `.ai/context/HANDOFF.md` — empty work checkpoint
+- `.ai/context/LESSONS.md` — empty confirmed lesson registry
 - `.ai/context/specs/.gitkeep`
 
 and edit `.git/info/exclude` — the whole context set will be **local-only**, never committed to the repo
@@ -213,6 +216,8 @@ Every entry must cite a real file path as evidence.
 **4.4 `.ai/context/untracked.md`** — list shared infra not counted as features (common/, utils/, config/)
 
 **4.5 `.ai/context/specs/.gitkeep`**
+
+**4.5b Context selection and continuity** — create from `context-map.json`, `HANDOFF.md`, and `LESSONS.md` templates. Map only actual module prefixes discovered in Step 2 to relevant existing repo-relative context paths. Do not invent rules or confirmed lessons. An empty module list is valid when no rules exist. Keep these files local-only with the rest of `.ai/`. Existing setup → propose missing files, merge with approval, never overwrite checkpoints/lessons through `--force`.
 
 **4.6 Local-only context (default)** — make context visible on this machine only
 
@@ -260,6 +265,7 @@ B) Run /sync now — see how much orphan code there is, then gradually create re
 - `.ai/context/ARCHITECTURE.md` ({N} ADRs)
 - `.ai/context/features.md` (empty index)
 - `.ai/context/untracked.md` ({N} entries)
+- `.ai/context/context-map.json`, `HANDOFF.md`, `LESSONS.md`
 - `.ai/context/specs/` (empty)
 
 ### ⚠️ Review yourself
@@ -345,6 +351,8 @@ Use templates from `~/.ai/templates/project/` filled with real data from P3 (rem
 Also add (for cross-repo tasks — see AI.md › Cross-repo Task):
 - `features.md` — empty template from `~/.ai/templates/features.md` (`/reindex` at the project root regenerates it)
 - `specs/.gitkeep` — only specs touching ≥ 2 repos / single-repo specs stay in that repo
+- `context-map.json` — actual repo prefixes mapped to existing repo context paths; update the proposal after repo initialization
+- `HANDOFF.md`, `LESSONS.md` — empty templates for cross-repo continuity and confirmed shared lessons; never invent entries
 
 **Project memory file** at the project root — short, paths only (named after the running assistant — same rules as 4.1).
 Project root is a git repo that already tracks a memory file → skip (Team memory mode — `PROJECT.md` serves instead).
