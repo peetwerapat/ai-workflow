@@ -51,8 +51,10 @@ Mode: normal | quick
 - `.ai/context/features.md` — similar features in the same module (reference pattern)
 
 **Code scan:**
+- Use `python3 ~/.ai/tools/workflow.py context --root . --path <source-path>` if the tool is installed. Read only affected modules' mapped rules and confirmed, still-valid lessons; a context map does not override team rules.
 - read 1-2 sample files in target module → understand the patterns actually used
 - find similar existing endpoints/functions (avoid duplicates)
+- Cite path and symbol/section for material claims. Mark assumptions and missing evidence explicitly; do not infer a guarantee from README text alone.
 
 ### Step 2: Extract Business Rules
 

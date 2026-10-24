@@ -114,7 +114,7 @@ Change is compatible with existing spec
 Confirm or revise the type detected by the main command
 
 **FIXED** (bug fix) — code deviates from spec → fix it to match spec
-- Spec **unchanged** | scope bounded | test: add regression
+- Spec **unchanged** | scope bounded | validation: reproduce the failing flow; suggest a targeted regression when useful
 - Indicators: "bug", "error", "ค้าง" (hangs), "ไม่ทำงาน" (doesn't work), "ทำผิด" (behaves wrong) / describes unexpected behavior
 
 **CHANGED** (requirement change) — spec changes → code follows
@@ -132,6 +132,8 @@ Confirm or revise the type detected by the main command
 ### Step 2: Trace Dependencies
 
 **Use real grep/glob — never guess**
+
+Use the context selector for affected source paths when installed. Cite path and symbol/section for dependency and contract claims. A context map selects candidates; verify actual imports/consumers. State missing evidence explicitly. Review only relevant confirmed lessons whose code evidence remains valid.
 
 #### 2.1 Direct Impact (files that must actually change)
 
@@ -183,7 +185,9 @@ None → "Isolated — no impact on other modules"
 
 ---
 
-### Step 4: Test Impact
+### Step 4: Validation Impact
+
+Default to a practical flow per `~/.ai/workflows/implementation.md`. Identify affected inputs and expected outcomes. Automated checks below are recommendations when useful or required, not a demand to create test infrastructure. Missing tests alone is not a defect. Do not claim a command ran during analysis unless it actually did.
 
 #### 4.1 Existing tests that may break
 ```markdown
@@ -191,8 +195,8 @@ None → "Isolated — no impact on other modules"
   - "{test name}" — {may need update / unaffected / behavior not yet covered}
 ```
 
-#### 4.2 New tests needed
-Describe what kind of tests are needed (don't write them — `/build` or `/change` does)
+#### 4.2 Practical flow and useful regression coverage
+Describe the failing/new flow and expected result. Recommend new automated coverage only when useful or required; never write tests or install infrastructure during analysis.
 ```markdown
 - Regression: "should timeout after 5s when cache is unresponsive" (FIXED)
 - Edge case: "should return cached response during downtime"
@@ -202,8 +206,8 @@ Describe what kind of tests are needed (don't write them — `/build` or `/chang
 
 | Type | Strategy |
 |---|---|
-| FIXED | Add regression test before fixing (TDD-ish) |
-| CHANGED | Update existing + add new for new rules |
+| FIXED | Reproduce the failing flow; suggest regression coverage for recurring or hard-to-inspect behavior |
+| CHANGED | Exercise the new rule and affected consumers; update relevant tests when tests mode is chosen/required |
 | REFACTORED | ❗ **Don't modify tests** — if tests break = not a true refactor |
 
 ---

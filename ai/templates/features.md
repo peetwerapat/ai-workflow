@@ -25,8 +25,7 @@
 ## At a Glance
 
 **Total**: 0 | ✅ 0 | ⚠️ 0 | 🚧 0 | 📋 0 | 🔴 0 | ❌ 0 | 📦 0
-**Last reindex**: — (`/reindex` never run)
-**Files scanned**: 0 active + 0 closed
+**Index state**: empty — `/reindex` reads current metadata; entry dates come from specs
 
 | Module | 📋 | 🚧 | ⚠️ | ✅ | 🔴 |
 |---|---|---|---|---|---|

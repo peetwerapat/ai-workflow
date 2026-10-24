@@ -35,4 +35,7 @@
 | `conventions.md` | writing code in any repo |
 | `integrations.md` | task touching an API / event / data used by another repo |
 | `specs/` + `features.md` | cross-repo task (touches ≥ 2 repos) — single-repo specs live in that repo |
+| `context-map.json` | select candidate context by actual repo/module source prefix |
+| `HANDOFF.md` | resume shared work; verify task, HEADs and diffs first |
+| `LESSONS.md` | relevant confirmed cross-repo lessons; recheck code evidence before reuse |
 | `<repo>/.ai/context/*` | only repos the task actually touches — do not load other repos |

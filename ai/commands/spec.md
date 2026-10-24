@@ -369,6 +369,8 @@ Contract Changes that affect `integrations.md` → show the proposed diff in the
 
 ## Step 7: Final Report
 
+After the approved spec is written, use `python3 ~/.ai/tools/workflow.py validate --root .` if installed. Resolve errors in the new spec before reporting success. Do not modify unrelated specs or reinterpret tool warnings as proof of test success.
+
 ```
 ## ✅ Spec Created: {Task ID}
 

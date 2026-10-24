@@ -37,6 +37,8 @@ git status --short
 
 ## Step 1: Scan Sources
 
+When installed, run `python3 ~/.ai/tools/workflow.py validate --root .` first for deterministic metadata, duplicate-ID, status-row, and local-link checks. These checks do not prove semantic drift or test success; inspect actual source for the categories below. Report unsupported legacy spec filenames for migration rather than silently skipping them.
+
 ### Source A — spec files (source of truth)
 
 Read every file in `.ai/context/specs/` (both `TASK-*.md` and `CLOSED-TASK-*.md`)
@@ -57,13 +59,13 @@ Find the project's actual source root (do not assume `src/`), then list:
 
 ## Step 2: Detect Drift Categories
 
-### 🔴 Category 1: Orphan Code
-**Code file exists but does not appear in any spec's Files list** (written without going through `/spec`)
+### ℹ️ Category 1: Undocumented Code
+**Code file exists but does not appear in any spec's Files list**. Direct coding is supported; absence of a spec is informational, not a defect or critical drift. Escalate only a demonstrated contradiction with an existing rule or contract, citing both sources.
 
 Skip: files listed in `untracked.md`, test files paired with already-tracked source, config/generated files
 
 ```
-🔴 {path}
+ℹ️ {path}
    Created: {commit} "{msg}" ({relative time} by {author})
    Not referenced by any spec
 ```
@@ -77,7 +79,7 @@ Skip: files listed in `untracked.md`, test files paired with already-tracked sou
    File missing (possibly renamed in {commit}, {relative time})
 ```
 
-### 🟡 Category 3: Module Orphan
+### ℹ️ Category 3: Undocumented Module
 **Module directory exists but no spec has `Module` = that name**
 
 ### 🟡 Category 4: Status Lie
@@ -107,8 +109,8 @@ Scanned: {X} spec files | {Y} modules | {Z} source files
 
 ### 🔴 Critical Drift ({count})
 
-**Orphan Code ({count})**
-- `{path}` — created {commit} "{msg}" ({time} by {author}), not referenced by any spec
+**Rule/contract contradictions ({count})**
+- `{path}` — {observed behavior} conflicts with {spec rule/contract}; evidence {symbol/section}
 
 **Stale Files ({count})**
 - {task-id}: `{path}` not found — last commit {commit} ({time})
@@ -117,9 +119,6 @@ Scanned: {X} spec files | {Y} modules | {Z} source files
 
 ### 🟡 Warning Drift ({count})
 
-**Module Orphan ({count})**
-- `{module path}` — no spec with Module = {name}
-
 **Status Lie ({count})**
 - {task-id}: status ✅ but Files list empty
 - {task-id}: status 📋 but code already exists
@@ -127,6 +126,9 @@ Scanned: {X} spec files | {Y} modules | {Z} source files
 **Post-BUILT Activity ({count})**
 - {task-id} ✅ (last entry {date}) — `{file}` modified on {date}
   Check whether it is a bug fix, refactor, or requirement change
+
+### ℹ️ Documentation Coverage ({count})
+- `{path or module}` — not referenced by a spec; direct coding is allowed
 
 ---
 
@@ -164,10 +166,10 @@ Choose [A/B/C]:
 
 ### Fix Options per Category
 
-**Orphan Code**
+**Undocumented Code**
 ```
-A) Generate spec retroactively — analyze current code → create new spec
-   Status: ✅ (retroactive), Changelog: ADDED retroactively via /sync
+A) Draft a retroactive spec through /spec — analyze code, show draft, wait for approval
+   A retroactive record alone never proves tests passed; use ⚠️ until verified through /build
 B) Add to existing spec — pick task-id → add path to Implementation Status > Files
 C) Mark as untracked — add to `.ai/context/untracked.md` (shared util / infra)
 ```
@@ -181,9 +183,9 @@ B) File was renamed — ask for new path → update + Changelog "REFACTORED — 
 C) Feature was reverted — `/change {task-id} --cancel "code reverted"`
 ```
 
-**Module Orphan**
+**Undocumented Module**
 ```
-A) Create spec retroactively for this module
+A) Draft a retroactive spec through /spec, with developer approval and no unsupported Done claim
 B) Mark untracked
 C) Module deprecated — confirm + dev deletes it manually
 ```
@@ -194,13 +196,13 @@ C) Module deprecated — confirm + dev deletes it manually
 A) Fill Implementation Status — scan code → propose Files list
 
 # 📋 + code exists
-A) Flip Status → ✅ (acknowledge it was built outside the flow)
+A) Flip Status → ⚠️ Done (untested), recording that current test evidence is unavailable
 B) `/build --resume` — proper flow + tests (recommended)
 ```
 
 **Post-BUILT Activity**
 ```
-A) Add CHANGED entry (+ reason, update Business Rules if needed)
+A) Requirement changed → hand off to /change; /sync must not edit Business Rules
 B) Add FIXED entry (bug fix, not a requirement change)
 C) Add REFACTORED entry (internal only)
 D) Skip (typo / comment only)
@@ -227,7 +229,7 @@ Fixed: {X} | Skipped: {Y} | Reindex: ✅
 
 ### Next Steps
 - `git diff .ai/` review
-- Commit: `docs: sync drift fixes`
+- Context remains local-only; review changed files without committing automatically
 ```
 
 ---
@@ -280,7 +282,7 @@ but will miss: last commit, recent activity, who/when
 A) Continue  B) `git stash` first  C) Cancel and commit first
 ```
 
-**Orphan in shared/common directory**
+**Undocumented shared/common directory**
 ```
 ⚠️ Likely shared infrastructure — suggest adding to untracked.md instead of creating a spec
 ```
@@ -300,8 +302,8 @@ dev: /sync
 AI: ## ✅ Spec ↔ Code in Sync — Scanned 15 specs, 5 modules, 42 files
 
 dev: /sync
-AI: ### 🔴 Critical Drift (1)
-    **Orphan Code** — `{path}` created 2d ago, not referenced by any spec
+AI: ### ℹ️ Documentation Coverage (1)
+    **Undocumented Code** — `{path}` created 2d ago, not referenced by any spec; direct coding is allowed
     Run `/sync --fix` to fix
 
 dev: /sync --fix
